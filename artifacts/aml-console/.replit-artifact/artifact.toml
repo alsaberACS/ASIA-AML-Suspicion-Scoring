@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ASIA AML Suspicion Scoring"
+description = "A multi-bank AML suspicion scoring console for ASIA Consulting. Analysts create a case per subject, upload bank statement exports from any number of Kuwaiti banks, and the system consolidates them into one ledger, nets internal transfers, runs typology-aligned feature engineering, fires a rule engine with cited FATF/Egmont typologies, aggregates evidence through a Bayesian log-odds layer into a calibrated escalation probability with risk bands, and produces an AI analyst narrative, adversarial benign-explanation critique, and a full evidence pack with per-transaction drill-through."
+version = "1.0.0"
+id = "artifacts/aml-console"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21664
+
+[services.development]
+run = "pnpm --filter @workspace/aml-console run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/aml-console", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/aml-console/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21664"
+BASE_PATH = "/"

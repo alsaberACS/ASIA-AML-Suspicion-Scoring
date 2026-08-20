@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ASIA AML Suspicion Scoring API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Global command-center summary
+  - name: cases
+    description: Subject cases
+  - name: files
+    description: Bank statement files
+  - name: analysis
+    description: Analysis runs and evidence packs
+  - name: transactions
+    description: Consolidated ledger
 paths:
   /healthz:
     get:
@@ -24,7 +34,337 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Global dashboard summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /demo/seed:
+    post:
+      operationId: seedDemoCase
+      tags: [cases]
+      summary: Create (or return) the bundled demo case built from the five sample bank statements
+      responses:
+        "200":
+          description: Demo case ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+  /cases:
+    get:
+      operationId: listCases
+      tags: [cases]
+      summary: List all cases
+      responses:
+        "200":
+          description: Cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Case"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Create a case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+  /cases/{caseId}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      summary: Get a case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+    patch:
+      operationId: updateCase
+      tags: [cases]
+      summary: Update case subject profile
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+    delete:
+      operationId: deleteCase
+      tags: [cases]
+      summary: Delete a case and all its data
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "204":
+          description: Deleted
+  /cases/{caseId}/files:
+    get:
+      operationId: listCaseFiles
+      tags: [files]
+      summary: List uploaded bank files for a case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BankFile"
+    post:
+      operationId: uploadCaseFile
+      tags: [files]
+      summary: Upload one bank statement export (xlsx/csv, base64 content). Parsing + adaptive column mapping happens immediately.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BankFileUpload"
+      responses:
+        "201":
+          description: Parsed file summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BankFile"
+        "422":
+          description: File could not be parsed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /cases/{caseId}/files/{fileId}:
+    delete:
+      operationId: deleteCaseFile
+      tags: [files]
+      summary: Remove an uploaded file and its transactions
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+  /cases/{caseId}/analyze:
+    post:
+      operationId: analyzeCase
+      tags: [analysis]
+      summary: Run the full scoring pipeline (consolidation, netting, features, rule engine, Bayesian aggregation). AI analyst layers run asynchronously afterwards.
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "201":
+          description: Analysis run (deterministic layers complete, aiStatus pending)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRun"
+        "422":
+          description: Case has no parsable transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /cases/{caseId}/analysis:
+    get:
+      operationId: getLatestAnalysis
+      tags: [analysis]
+      summary: Latest analysis run for a case
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Latest run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRun"
+        "404":
+          description: No analysis yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /analysis-runs/{runId}:
+    get:
+      operationId: getAnalysisRun
+      tags: [analysis]
+      summary: Get one analysis run (poll while aiStatus is pending/running)
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRun"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /analysis-runs/{runId}/disposition:
+    post:
+      operationId: createDisposition
+      tags: [analysis]
+      summary: Capture the analyst disposition for a run (builds the label store)
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DispositionInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Disposition"
+  /transactions:
+    get:
+      operationId: listCaseTransactions
+      tags: [transactions]
+      summary: Consolidated cross-bank ledger with filters
+      parameters:
+        - name: caseId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: bank
+          in: query
+          schema: { type: string }
+        - name: channel
+          in: query
+          schema: { type: string }
+        - name: direction
+          in: query
+          schema: { type: string, enum: [credit, debit] }
+        - name: flaggedOnly
+          in: query
+          schema: { type: boolean }
+        - name: internalOnly
+          in: query
+          schema: { type: boolean }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: txnIds
+          in: query
+          description: Comma-separated transaction ids for evidence drill-through
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [date_asc, date_desc, amount_desc], default: date_asc }
+      responses:
+        "200":
+          description: Page of transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+  /cases/{caseId}/timeline:
+    get:
+      operationId: getCaseTimeline
+      tags: [transactions]
+      summary: Monthly per-bank flow aggregates for charts
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelinePoint"
+  /cases/{caseId}/network:
+    get:
+      operationId: getCaseNetwork
+      tags: [transactions]
+      summary: Counterparty flow graph (subject accounts + counterparties)
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Graph
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkGraph"
 components:
+  parameters:
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: integer
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: integer
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +373,428 @@ components:
           type: string
       required:
         - status
-
+    ApiMessage:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    DashboardSummary:
+      type: object
+      required: [totalCases, totalFiles, totalTransactions, totalValueKwd, bandCounts, recentRuns, avgDataQuality]
+      properties:
+        totalCases: { type: integer }
+        totalFiles: { type: integer }
+        totalTransactions: { type: integer }
+        totalValueKwd: { type: number }
+        avgDataQuality: { type: ["number", "null"] }
+        bandCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/BandCount"
+        recentRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunSummary"
+    BandCount:
+      type: object
+      required: [band, count]
+      properties:
+        band: { type: string }
+        count: { type: integer }
+    RunSummary:
+      type: object
+      required: [runId, caseId, subjectName, probability, band, createdAt]
+      properties:
+        runId: { type: integer }
+        caseId: { type: integer }
+        subjectName: { type: string }
+        probability: { type: number }
+        band: { type: string }
+        createdAt: { type: string }
+        disposition: { type: ["string", "null"] }
+    Case:
+      type: object
+      required: [id, subjectName, status, createdAt, updatedAt, fileCount, txnCount, bankCount]
+      properties:
+        id: { type: integer }
+        subjectName: { type: string }
+        subjectReference: { type: ["string", "null"] }
+        declaredOccupation: { type: ["string", "null"] }
+        declaredMonthlyIncomeKwd: { type: ["number", "null"] }
+        declaredBusinessActivity: { type: ["string", "null"] }
+        expectedCountries:
+          type: array
+          items: { type: string }
+        notes: { type: ["string", "null"] }
+        status: { type: string, enum: [draft, ready, analyzing, scored] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        fileCount: { type: integer }
+        txnCount: { type: integer }
+        bankCount: { type: integer }
+        latestRun:
+          oneOf:
+            - $ref: "#/components/schemas/RunSummary"
+            - type: "null"
+    CaseInput:
+      type: object
+      required: [subjectName]
+      properties:
+        subjectName: { type: string, minLength: 1 }
+        subjectReference: { type: string }
+        declaredOccupation: { type: string }
+        declaredMonthlyIncomeKwd: { type: number }
+        declaredBusinessActivity: { type: string }
+        expectedCountries:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+    CaseUpdate:
+      type: object
+      properties:
+        subjectName: { type: string, minLength: 1 }
+        subjectReference: { type: ["string", "null"] }
+        declaredOccupation: { type: ["string", "null"] }
+        declaredMonthlyIncomeKwd: { type: ["number", "null"] }
+        declaredBusinessActivity: { type: ["string", "null"] }
+        expectedCountries:
+          type: array
+          items: { type: string }
+        notes: { type: ["string", "null"] }
+    BankFileUpload:
+      type: object
+      required: [filename, contentBase64]
+      properties:
+        filename: { type: string, minLength: 1 }
+        contentBase64:
+          type: string
+          description: Base64-encoded xlsx or csv file content
+        bankLabel:
+          type: string
+          description: Optional analyst-provided bank name override
+    BankFile:
+      type: object
+      required: [id, caseId, filename, bankLabel, status, rowsParsed, rowsSkipped, dataQuality, qualityIssues, mappingNotes, accountIds, totalCreditsKwd, totalDebitsKwd, createdAt]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        filename: { type: string }
+        bankLabel: { type: string }
+        status: { type: string, enum: [parsed, error] }
+        rowsParsed: { type: integer }
+        rowsSkipped: { type: integer }
+        dataQuality: { type: number, description: "0-1 per-file extraction quality" }
+        qualityIssues:
+          type: array
+          items: { type: string }
+        mappingNotes:
+          type: array
+          items: { type: string }
+        accountIds:
+          type: array
+          items: { type: string }
+        periodStart: { type: ["string", "null"] }
+        periodEnd: { type: ["string", "null"] }
+        totalCreditsKwd: { type: number }
+        totalDebitsKwd: { type: number }
+        createdAt: { type: string }
+    Transaction:
+      type: object
+      required: [id, caseId, fileId, bank, accountId, postingDate, direction, amountKwd, currency, channel, isInternalTransfer, flags]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        fileId: { type: integer }
+        bank: { type: string }
+        accountId: { type: string }
+        postingDate: { type: string }
+        direction: { type: string, enum: [credit, debit] }
+        amountKwd: { type: number }
+        currency: { type: string }
+        channel: { type: string }
+        counterpartyName: { type: ["string", "null"] }
+        counterpartyBank: { type: ["string", "null"] }
+        counterpartyCountry: { type: ["string", "null"] }
+        narrative: { type: ["string", "null"] }
+        runningBalance: { type: ["number", "null"] }
+        isInternalTransfer: { type: boolean }
+        internalPairId: { type: ["integer", "null"] }
+        flags:
+          type: array
+          items: { type: string }
+          description: Rule ids citing this transaction
+    TransactionPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+    TimelinePoint:
+      type: object
+      required: [month, bank, creditsKwd, debitsKwd, cashInKwd, cashOutKwd, txnCount]
+      properties:
+        month: { type: string, description: "YYYY-MM" }
+        bank: { type: string }
+        creditsKwd: { type: number }
+        debitsKwd: { type: number }
+        cashInKwd: { type: number }
+        cashOutKwd: { type: number }
+        txnCount: { type: integer }
+    NetworkGraph:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkEdge"
+    NetworkNode:
+      type: object
+      required: [id, label, type, totalInKwd, totalOutKwd, txnCount]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        type: { type: string, enum: [subject_account, counterparty] }
+        bank: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        totalInKwd: { type: number }
+        totalOutKwd: { type: number }
+        txnCount: { type: integer }
+    NetworkEdge:
+      type: object
+      required: [source, target, valueKwd, txnCount]
+      properties:
+        source: { type: string }
+        target: { type: string }
+        valueKwd: { type: number }
+        txnCount: { type: integer }
+    FeatureValue:
+      type: object
+      required: [key, label, group, value, zone]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        group: { type: string, enum: [placement, layering, geography, temporal, narrative, network, cross_bank] }
+        value: { type: number }
+        unit: { type: ["string", "null"] }
+        baseline: { type: ["number", "null"] }
+        baselineLabel: { type: ["string", "null"] }
+        zone: { type: string, enum: [normal, elevated, critical, gated] }
+        description: { type: ["string", "null"] }
+        gatedReason: { type: ["string", "null"] }
+    RuleHit:
+      type: object
+      required: [ruleId, typologyId, typologyName, title, severity, weightLogLr, fired, description, citation, txnIds]
+      properties:
+        ruleId: { type: string }
+        typologyId: { type: string }
+        typologyName: { type: string }
+        title: { type: string }
+        severity: { type: string, enum: [low, medium, high, critical] }
+        weightLogLr: { type: number, description: "log likelihood-ratio contribution when fired" }
+        fired: { type: boolean }
+        description: { type: string }
+        citation: { type: string }
+        detail: { type: ["string", "null"] }
+        txnIds:
+          type: array
+          items: { type: integer }
+    Driver:
+      type: object
+      required: [label, contribution, source]
+      properties:
+        label: { type: string }
+        contribution: { type: number, description: "signed log-odds contribution" }
+        source: { type: string, enum: [rule, feature, data_quality, prior] }
+        ruleId: { type: ["string", "null"] }
+        featureKey: { type: ["string", "null"] }
+        txnIds:
+          type: array
+          items: { type: integer }
+    InternalTransferPair:
+      type: object
+      required: [id, debitTxnId, creditTxnId, amountKwd, dateGapDays, fromBank, toBank, matchBasis, confidence]
+      properties:
+        id: { type: integer }
+        debitTxnId: { type: integer }
+        creditTxnId: { type: integer }
+        amountKwd: { type: number }
+        dateGapDays: { type: number }
+        fromBank: { type: string }
+        toBank: { type: string }
+        matchBasis: { type: string }
+        confidence: { type: number }
+    BankBreakdown:
+      type: object
+      required: [bank, txnCount, creditsKwd, debitsKwd]
+      properties:
+        bank: { type: string }
+        txnCount: { type: integer }
+        creditsKwd: { type: number }
+        debitsKwd: { type: number }
+        periodStart: { type: ["string", "null"] }
+        periodEnd: { type: ["string", "null"] }
+        accountIds:
+          type: array
+          items: { type: string }
+    TypologyFinding:
+      type: object
+      required: [typologyId, typologyName, present, strength, reasoning, supportingTxnIds, supportingFeatures, benignExplanationsPossible]
+      properties:
+        typologyId: { type: string }
+        typologyName: { type: string }
+        present: { type: string, enum: [yes, partial, "no"] }
+        strength: { type: string, enum: [weak, moderate, strong] }
+        reasoning: { type: string }
+        supportingTxnIds:
+          type: array
+          items: { type: integer }
+        supportingFeatures:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportingFeature"
+        benignExplanationsPossible:
+          type: array
+          items: { type: string }
+    SupportingFeature:
+      type: object
+      required: [feature, value]
+      properties:
+        feature: { type: string }
+        value: { type: number }
+        baseline: { type: ["number", "null"] }
+    ProfileConsistency:
+      type: object
+      required: [verdict, explanation]
+      properties:
+        verdict: { type: string, enum: [consistent, partially_inconsistent, inconsistent] }
+        explanation: { type: string }
+    BenignScenario:
+      type: object
+      required: [scenario, explainsFindings, consistencyCheck, confirmingDocument, plausibility]
+      properties:
+        scenario: { type: string }
+        explainsFindings:
+          type: array
+          items: { type: string }
+        consistencyCheck: { type: string }
+        confirmingDocument: { type: string }
+        plausibility: { type: string, enum: [high, medium, low] }
+    MethodologicalObjection:
+      type: object
+      required: [targetFinding, objection, severity]
+      properties:
+        targetFinding: { type: string }
+        objection: { type: string }
+        severity: { type: string, enum: [high, medium, low] }
+    BandThreshold:
+      type: object
+      required: [band, minP, maxP, action]
+      properties:
+        band: { type: string }
+        minP: { type: number }
+        maxP: { type: number }
+        action: { type: string }
+    AnalysisRun:
+      type: object
+      required: [id, caseId, createdAt, status, aiStatus, probability, band, priorProbability, dataQualityScore, dataQualityIssues, txnCount, totalCreditsKwd, totalDebitsKwd, internalTransferCount, internalValueKwd, periodStart, periodEnd, banks, features, ruleHits, drivers, internalTransfers, bandScale]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        createdAt: { type: string }
+        status: { type: string, enum: [complete] }
+        aiStatus: { type: string, enum: [pending, running, complete, failed, skipped] }
+        aiError: { type: ["string", "null"] }
+        probability: { type: number }
+        band: { type: string, enum: [Low, Moderate, Elevated, High, Critical] }
+        priorProbability: { type: number }
+        posteriorLogOdds: { type: number }
+        dataQualityScore: { type: number }
+        dataQualityIssues:
+          type: array
+          items: { type: string }
+        txnCount: { type: integer }
+        totalCreditsKwd: { type: number }
+        totalDebitsKwd: { type: number }
+        internalTransferCount: { type: integer }
+        internalValueKwd: { type: number }
+        periodStart: { type: ["string", "null"] }
+        periodEnd: { type: ["string", "null"] }
+        banks:
+          type: array
+          items:
+            $ref: "#/components/schemas/BankBreakdown"
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureValue"
+        ruleHits:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleHit"
+        drivers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Driver"
+        internalTransfers:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalTransferPair"
+        bandScale:
+          type: array
+          items:
+            $ref: "#/components/schemas/BandThreshold"
+        typologyFindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypologyFinding"
+        profileConsistency:
+          oneOf:
+            - $ref: "#/components/schemas/ProfileConsistency"
+            - type: "null"
+        informationGaps:
+          type: array
+          items: { type: string }
+        criticScenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/BenignScenario"
+        methodologicalObjections:
+          type: array
+          items:
+            $ref: "#/components/schemas/MethodologicalObjection"
+        residualUnexplained:
+          type: array
+          items: { type: string }
+        caseMemo: { type: ["string", "null"] }
+        disposition:
+          oneOf:
+            - $ref: "#/components/schemas/Disposition"
+            - type: "null"
+    DispositionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [escalate, watchlist, close] }
+        analystName: { type: string }
+        notes: { type: string }
+    Disposition:
+      type: object
+      required: [id, runId, decision, createdAt]
+      properties:
+        id: { type: integer }
+        runId: { type: integer }
+        decision: { type: string, enum: [escalate, watchlist, close] }
+        analystName: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
