@@ -15,9 +15,16 @@ localPort = 21664
 run = "pnpm --filter @workspace/aml-console run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/aml-console", "run", "build" ]
 serve = "static"
 publicDir = "artifacts/aml-console/dist/public"
+
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/aml-console", "run", "build" ]
+
+[services.production.build.env]
+NODE_ENV = "production"
+PORT = "21664"
+BASE_PATH = "/"
 
 [[services.production.rewrites]]
 from = "/*"

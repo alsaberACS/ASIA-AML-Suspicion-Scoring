@@ -12,3 +12,4 @@
 - [Sanctions screening](sanctions-screening.md) — OFAC/UN endpoints 302 (plain GET, follow, no Range); possible-tier needs distinctive-token filter; PDF section numbers also hide in aiComplete ternaries.
 - [Disclosure extraction](disclosure-extraction.md) — whole-PDF document block to Claude works; upsert-runners need upload-token conditional writes; AI stages re-fetch async inputs at stage time.
 - [Tester console noise](tester-console-noise.md) — long-lived tester browsers accumulate stale HMR errors; hard-reload before treating console errors as real bugs.
+- [Publish promote debugging](deploy-debugging.md) — build log dying at "Creating Autoscale service" +5min = candidate never ready; its logs are never surfaced — replicate prod boot locally to split app vs platform.
