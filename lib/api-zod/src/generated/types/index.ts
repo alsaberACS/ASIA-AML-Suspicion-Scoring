@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './aiInvestigation';
 export * from './analysisRun';
 export * from './analysisRunAiStatus';
 export * from './analysisRunBand';
@@ -33,8 +34,14 @@ export * from './driverSource';
 export * from './featureValue';
 export * from './featureValueGroup';
 export * from './featureValueZone';
+export * from './gatedTechnicalTest';
 export * from './healthStatus';
 export * from './internalTransferPair';
+export * from './investigationAction';
+export * from './investigationActionPriority';
+export * from './investigationHypothesis';
+export * from './investigationHypothesisPriority';
+export * from './investigationHypothesisStatus';
 export * from './listCaseTransactionsDirection';
 export * from './listCaseTransactionsParams';
 export * from './listCaseTransactionsSort';
@@ -50,6 +57,10 @@ export * from './ruleHit';
 export * from './ruleHitSeverity';
 export * from './runSummary';
 export * from './supportingFeature';
+export * from './technicalAnalysis';
+export * from './technicalFinding';
+export * from './technicalFindingCategory';
+export * from './technicalFindingSeverity';
 export * from './timelinePoint';
 export * from './transaction';
 export * from './transactionDirection';

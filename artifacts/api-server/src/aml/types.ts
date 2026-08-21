@@ -109,6 +109,70 @@ export interface Driver {
   txnIds: number[];
 }
 
+export type TechnicalFindingCategory =
+  | "amount_outlier"
+  | "behavior_change"
+  | "counterparty_concentration"
+  | "sequence_pattern"
+  | "network_circulation"
+  | "cross_bank_pattern";
+
+export type TechnicalSeverity = "low" | "medium" | "high" | "critical";
+
+export interface TechnicalFinding {
+  findingId: string;
+  category: TechnicalFindingCategory;
+  title: string;
+  severity: TechnicalSeverity;
+  summary: string;
+  metricValue: number | null;
+  benchmark: string;
+  methodology: string;
+  caveat: string | null;
+  txnIds: number[];
+}
+
+export interface GatedTechnicalTest {
+  testId: string;
+  reason: string;
+}
+
+export interface TechnicalAnalysis {
+  engineVersion: string;
+  testedTransactionCount: number;
+  dataQualityScore: number;
+  testsExecuted: string[];
+  gatedTests: GatedTechnicalTest[];
+  findings: TechnicalFinding[];
+}
+
+export interface InvestigationHypothesis {
+  hypothesisId: string;
+  title: string;
+  priority: "high" | "medium" | "low";
+  status: "supported" | "plausible" | "inconclusive" | "not_supported";
+  rationale: string;
+  supportingTxnIds: number[];
+  contradictoryTxnIds: number[];
+  technicalFindingIds: string[];
+  benignExplanations: string[];
+  unresolvedQuestions: string[];
+}
+
+export interface InvestigationAction {
+  priority: "high" | "medium" | "low";
+  action: string;
+  rationale: string;
+  evidenceNeeded: string;
+}
+
+export interface AiInvestigation {
+  executiveAssessment: string;
+  hypotheses: InvestigationHypothesis[];
+  recommendedActions: InvestigationAction[];
+  limitations: string[];
+}
+
 export interface InternalPair {
   id: number;
   debitTxnId: number;
@@ -159,6 +223,7 @@ export interface DeterministicResult {
   ruleHits: RuleHit[];
   drivers: Driver[];
   internalPairs: InternalPair[];
+  technicalAnalysis: TechnicalAnalysis;
 }
 
 export const BAND_SCALE = [

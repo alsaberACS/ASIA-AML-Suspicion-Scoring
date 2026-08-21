@@ -34,6 +34,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Legend, ComposedChart, Line
 } from 'recharts';
+import { InvestigationIntelligenceView } from './InvestigationIntelligenceView';
 
 export default function EvidencePack({ caseId }: { caseId: number }) {
   const { data: latestAnalysis, isLoading: analysisLoading, error: analysisError, refetch: refetchLatest } = useGetLatestAnalysis(caseId);
@@ -91,9 +92,12 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
             <TabsTrigger value="consolidation" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Consolidation</TabsTrigger>
             <TabsTrigger value="timeline" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Timeline</TabsTrigger>
             {/* <TabsTrigger value="network" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Network</TabsTrigger> */}
+            <TabsTrigger value="intelligence" data-testid="tab-intelligence" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+              Investigation Intel
+              {shouldPoll && <span className="ml-2 h-2 w-2 rounded-full bg-primary animate-pulse" />}
+            </TabsTrigger>
             <TabsTrigger value="ai" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               AI Analyst
-              {shouldPoll && <span className="ml-2 h-2 w-2 rounded-full bg-primary animate-pulse" />}
             </TabsTrigger>
             <TabsTrigger value="transactions" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Transactions</TabsTrigger>
             <TabsTrigger value="disposition" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Disposition</TabsTrigger>
@@ -118,6 +122,10 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
         
         <TabsContent value="timeline" className="m-0 focus-visible:outline-none">
           <TimelineView caseId={caseId} />
+        </TabsContent>
+
+        <TabsContent value="intelligence" className="m-0 focus-visible:outline-none">
+          <InvestigationIntelligenceView run={run} onNavigateTxns={navigateToTransactions} />
         </TabsContent>
 
         <TabsContent value="ai" className="m-0 focus-visible:outline-none">

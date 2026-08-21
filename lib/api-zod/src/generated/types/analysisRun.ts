@@ -5,6 +5,7 @@
  * ASIA AML Suspicion Scoring API
  * OpenAPI spec version: 0.1.0
  */
+import type { AiInvestigation } from './aiInvestigation';
 import type { AnalysisRunAiStatus } from './analysisRunAiStatus';
 import type { AnalysisRunBand } from './analysisRunBand';
 import type { AnalysisRunStatus } from './analysisRunStatus';
@@ -18,6 +19,7 @@ import type { InternalTransferPair } from './internalTransferPair';
 import type { MethodologicalObjection } from './methodologicalObjection';
 import type { ProfileConsistency } from './profileConsistency';
 import type { RuleHit } from './ruleHit';
+import type { TechnicalAnalysis } from './technicalAnalysis';
 import type { TypologyFinding } from './typologyFinding';
 
 export interface AnalysisRun {
@@ -47,6 +49,7 @@ export interface AnalysisRun {
   features: FeatureValue[];
   ruleHits: RuleHit[];
   drivers: Driver[];
+  technicalAnalysis: TechnicalAnalysis;
   internalTransfers: InternalTransferPair[];
   bandScale: BandThreshold[];
   typologyFindings?: TypologyFinding[];
@@ -55,6 +58,7 @@ export interface AnalysisRun {
   criticScenarios?: BenignScenario[];
   methodologicalObjections?: MethodologicalObjection[];
   residualUnexplained?: string[];
+  aiInvestigation?: AiInvestigation | null;
   /** @nullable */
   caseMemo?: string | null;
   disposition?: Disposition | null;

@@ -421,6 +421,112 @@ export interface MethodologicalObjection {
   severity: MethodologicalObjectionSeverity;
 }
 
+export interface GatedTechnicalTest {
+  testId: string;
+  reason: string;
+}
+
+export type TechnicalFindingCategory = typeof TechnicalFindingCategory[keyof typeof TechnicalFindingCategory];
+
+
+export const TechnicalFindingCategory = {
+  amount_outlier: 'amount_outlier',
+  behavior_change: 'behavior_change',
+  counterparty_concentration: 'counterparty_concentration',
+  sequence_pattern: 'sequence_pattern',
+  network_circulation: 'network_circulation',
+  cross_bank_pattern: 'cross_bank_pattern',
+} as const;
+
+export type TechnicalFindingSeverity = typeof TechnicalFindingSeverity[keyof typeof TechnicalFindingSeverity];
+
+
+export const TechnicalFindingSeverity = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export interface TechnicalFinding {
+  findingId: string;
+  category: TechnicalFindingCategory;
+  title: string;
+  severity: TechnicalFindingSeverity;
+  summary: string;
+  /** @nullable */
+  metricValue: number | null;
+  benchmark: string;
+  methodology: string;
+  /** @nullable */
+  caveat: string | null;
+  txnIds: number[];
+}
+
+export interface TechnicalAnalysis {
+  engineVersion: string;
+  testedTransactionCount: number;
+  dataQualityScore: number;
+  testsExecuted: string[];
+  gatedTests: GatedTechnicalTest[];
+  findings: TechnicalFinding[];
+}
+
+export type InvestigationHypothesisPriority = typeof InvestigationHypothesisPriority[keyof typeof InvestigationHypothesisPriority];
+
+
+export const InvestigationHypothesisPriority = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export type InvestigationHypothesisStatus = typeof InvestigationHypothesisStatus[keyof typeof InvestigationHypothesisStatus];
+
+
+export const InvestigationHypothesisStatus = {
+  supported: 'supported',
+  plausible: 'plausible',
+  inconclusive: 'inconclusive',
+  not_supported: 'not_supported',
+} as const;
+
+export interface InvestigationHypothesis {
+  hypothesisId: string;
+  title: string;
+  priority: InvestigationHypothesisPriority;
+  status: InvestigationHypothesisStatus;
+  rationale: string;
+  supportingTxnIds: number[];
+  contradictoryTxnIds: number[];
+  technicalFindingIds: string[];
+  benignExplanations: string[];
+  unresolvedQuestions: string[];
+}
+
+export type InvestigationActionPriority = typeof InvestigationActionPriority[keyof typeof InvestigationActionPriority];
+
+
+export const InvestigationActionPriority = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export interface InvestigationAction {
+  priority: InvestigationActionPriority;
+  action: string;
+  rationale: string;
+  evidenceNeeded: string;
+}
+
+export interface AiInvestigation {
+  executiveAssessment: string;
+  hypotheses: InvestigationHypothesis[];
+  recommendedActions: InvestigationAction[];
+  limitations: string[];
+}
+
 export interface BandThreshold {
   band: string;
   minP: number;
@@ -504,6 +610,7 @@ export interface AnalysisRun {
   features: FeatureValue[];
   ruleHits: RuleHit[];
   drivers: Driver[];
+  technicalAnalysis: TechnicalAnalysis;
   internalTransfers: InternalTransferPair[];
   bandScale: BandThreshold[];
   typologyFindings?: TypologyFinding[];
@@ -512,6 +619,7 @@ export interface AnalysisRun {
   criticScenarios?: BenignScenario[];
   methodologicalObjections?: MethodologicalObjection[];
   residualUnexplained?: string[];
+  aiInvestigation?: AiInvestigation | null;
   /** @nullable */
   caseMemo?: string | null;
   disposition?: Disposition | null;

@@ -697,6 +697,96 @@ components:
         targetFinding: { type: string }
         objection: { type: string }
         severity: { type: string, enum: [high, medium, low] }
+    GatedTechnicalTest:
+      type: object
+      required: [testId, reason]
+      properties:
+        testId: { type: string }
+        reason: { type: string }
+    TechnicalFinding:
+      type: object
+      required: [findingId, category, title, severity, summary, metricValue, benchmark, methodology, caveat, txnIds]
+      properties:
+        findingId: { type: string }
+        category:
+          type: string
+          enum: [amount_outlier, behavior_change, counterparty_concentration, sequence_pattern, network_circulation, cross_bank_pattern]
+        title: { type: string }
+        severity: { type: string, enum: [low, medium, high, critical] }
+        summary: { type: string }
+        metricValue: { type: ["number", "null"] }
+        benchmark: { type: string }
+        methodology: { type: string }
+        caveat: { type: ["string", "null"] }
+        txnIds:
+          type: array
+          items: { type: integer }
+    TechnicalAnalysis:
+      type: object
+      required: [engineVersion, testedTransactionCount, dataQualityScore, testsExecuted, gatedTests, findings]
+      properties:
+        engineVersion: { type: string }
+        testedTransactionCount: { type: integer }
+        dataQualityScore: { type: number }
+        testsExecuted:
+          type: array
+          items: { type: string }
+        gatedTests:
+          type: array
+          items:
+            $ref: "#/components/schemas/GatedTechnicalTest"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TechnicalFinding"
+    InvestigationHypothesis:
+      type: object
+      required: [hypothesisId, title, priority, status, rationale, supportingTxnIds, contradictoryTxnIds, technicalFindingIds, benignExplanations, unresolvedQuestions]
+      properties:
+        hypothesisId: { type: string }
+        title: { type: string }
+        priority: { type: string, enum: [high, medium, low] }
+        status: { type: string, enum: [supported, plausible, inconclusive, not_supported] }
+        rationale: { type: string }
+        supportingTxnIds:
+          type: array
+          items: { type: integer }
+        contradictoryTxnIds:
+          type: array
+          items: { type: integer }
+        technicalFindingIds:
+          type: array
+          items: { type: string }
+        benignExplanations:
+          type: array
+          items: { type: string }
+        unresolvedQuestions:
+          type: array
+          items: { type: string }
+    InvestigationAction:
+      type: object
+      required: [priority, action, rationale, evidenceNeeded]
+      properties:
+        priority: { type: string, enum: [high, medium, low] }
+        action: { type: string }
+        rationale: { type: string }
+        evidenceNeeded: { type: string }
+    AiInvestigation:
+      type: object
+      required: [executiveAssessment, hypotheses, recommendedActions, limitations]
+      properties:
+        executiveAssessment: { type: string }
+        hypotheses:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvestigationHypothesis"
+        recommendedActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvestigationAction"
+        limitations:
+          type: array
+          items: { type: string }
     BandThreshold:
       type: object
       required: [band, minP, maxP, action]
@@ -707,7 +797,7 @@ components:
         action: { type: string }
     AnalysisRun:
       type: object
-      required: [id, caseId, createdAt, status, aiStatus, probability, band, priorProbability, dataQualityScore, dataQualityIssues, txnCount, totalCreditsKwd, totalDebitsKwd, internalTransferCount, internalValueKwd, periodStart, periodEnd, banks, features, ruleHits, drivers, internalTransfers, bandScale]
+      required: [id, caseId, createdAt, status, aiStatus, probability, band, priorProbability, dataQualityScore, dataQualityIssues, txnCount, totalCreditsKwd, totalDebitsKwd, internalTransferCount, internalValueKwd, periodStart, periodEnd, banks, features, ruleHits, drivers, technicalAnalysis, internalTransfers, bandScale]
       properties:
         id: { type: integer }
         caseId: { type: integer }
@@ -746,6 +836,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Driver"
+        technicalAnalysis:
+          $ref: "#/components/schemas/TechnicalAnalysis"
         internalTransfers:
           type: array
           items:
@@ -776,6 +868,10 @@ components:
         residualUnexplained:
           type: array
           items: { type: string }
+        aiInvestigation:
+          oneOf:
+            - $ref: "#/components/schemas/AiInvestigation"
+            - type: "null"
         caseMemo: { type: ["string", "null"] }
         disposition:
           oneOf:

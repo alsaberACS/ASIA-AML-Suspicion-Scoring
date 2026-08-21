@@ -44,6 +44,23 @@ export const analysisRunsTable = pgTable(
     features: jsonb("features").$type<unknown[]>().notNull().default([]),
     ruleHits: jsonb("rule_hits").$type<unknown[]>().notNull().default([]),
     drivers: jsonb("drivers").$type<unknown[]>().notNull().default([]),
+    technicalAnalysis: jsonb("technical_analysis")
+      .$type<unknown>()
+      .notNull()
+      .default({
+        engineVersion: "legacy-unavailable",
+        testedTransactionCount: 0,
+        dataQualityScore: 0,
+        testsExecuted: [],
+        gatedTests: [
+          {
+            testId: "legacy_analysis_run",
+            reason:
+              "Technical forensics was not available when this analysis was created. Re-run analysis to generate it.",
+          },
+        ],
+        findings: [],
+      }),
     internalTransfers: jsonb("internal_transfers")
       .$type<unknown[]>()
       .notNull()
@@ -57,6 +74,7 @@ export const analysisRunsTable = pgTable(
       unknown[]
     >(),
     residualUnexplained: jsonb("residual_unexplained").$type<string[]>(),
+    aiInvestigation: jsonb("ai_investigation").$type<unknown>(),
     caseMemo: text("case_memo"),
   },
   (t) => [index("analysis_runs_case_idx").on(t.caseId)],

@@ -3,7 +3,13 @@ import { db, analysisRunsTable, casesTable, transactionsTable } from "@workspace
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import type { ForcedMapping } from "./parse";
-import type { RuleHit, FeatureValue, InternalPair, Driver } from "./types";
+import type {
+  FeatureValue,
+  InternalPair,
+  RuleHit,
+  TechnicalAnalysis,
+} from "./types";
+import { coerceAiInvestigation } from "./investigation-output";
 
 /**
  * LLM analyst layers (P3 typology analysis, P5 adversarial critic, P4 memo).
@@ -158,6 +164,10 @@ function buildEvidence(args: {
   const features = (run.features ?? []) as unknown as FeatureValue[];
   const ruleHits = (run.ruleHits ?? []) as unknown as RuleHit[];
   const pairs = (run.internalTransfers ?? []) as unknown as InternalPair[];
+  const technical = (run.technicalAnalysis ?? {
+    findings: [],
+    gatedTests: [],
+  }) as unknown as TechnicalAnalysis;
   const fired = ruleHits.filter((r) => r.fired);
 
   const monthly = new Map<string, { cin: number; cout: number }>();
@@ -216,6 +226,26 @@ function buildEvidence(args: {
     )
     .join("\n");
 
+  const technicalLines = (technical.findings ?? [])
+    .map((finding) => {
+      const sample = finding.txnIds
+        .slice(0, 8)
+        .map((id) => byId.get(id))
+        .filter((t): t is TxnLite => Boolean(t))
+        .map((t) => `    ${txnLine(t)}`)
+        .join("\n");
+      return `- ${finding.findingId} ${finding.title} [${finding.severity}]
+  ${finding.summary}
+  Test: ${finding.methodology}
+  Benchmark: ${finding.benchmark}
+  Caveat: ${finding.caveat ?? "none"}
+${sample ? `  Evidence sample:\n${sample}` : "  Evidence sample: none available"}`;
+    })
+    .join("\n");
+  const gatedTechnicalLines = (technical.gatedTests ?? [])
+    .map((test) => `- ${test.testId}: ${test.reason}`)
+    .join("\n");
+
   return `SUBJECT PROFILE
 Name: ${caseRow.subjectName}
 Declared occupation: ${caseRow.declaredOccupation ?? "not declared"}
@@ -240,7 +270,13 @@ FIRED DETERMINISTIC RULES
 ${ruleLines || "- none fired"}
 
 INTERNAL TRANSFER PAIRS (own money moving between own banks)
-${pairLines || "- none detected"}`;
+${pairLines || "- none detected"}
+
+TECHNICAL FORENSICS (separate from and with no effect on the suspicion score)
+${technicalLines || "- no technical anomaly crossed its evidence threshold"}
+
+GATED TECHNICAL TESTS
+${gatedTechnicalLines || "- none"}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +485,61 @@ Reply with ONLY this JSON:
       .set({ criticScenarios, methodologicalObjections, residualUnexplained })
       .where(eq(analysisRunsTable.id, runId));
 
+    // ---- P6: deep investigation hypotheses ------------------------------
+    log.info("P6 investigation intelligence starting");
+    const technical = (run.technicalAnalysis ?? {
+      findings: [],
+    }) as unknown as TechnicalAnalysis;
+    const validFindingIds = new Set((technical.findings ?? []).map((finding) => finding.findingId));
+    const p6System = `You are a forensic AML investigator at ASIA Consulting (Kuwait). You formulate falsifiable investigative hypotheses from technical transaction evidence, then actively search for contradictory and benign interpretations. Your output is decision support, not a verdict. ${SHARED_GUARDRAILS}`;
+    const p6User = `${evidence}
+
+PRIMARY TYPOLOGY REVIEW:
+${JSON.stringify({ typologyFindings, profileConsistency, informationGaps }, null, 1).slice(0, 7000)}
+
+ADVERSARIAL REVIEW:
+${JSON.stringify({ criticScenarios, methodologicalObjections, residualUnexplained }, null, 1).slice(0, 6000)}
+
+TASK:
+1. Prioritize no more than 6 falsifiable hypotheses. A supported or plausible hypothesis MUST cite real supportingTxnIds. Include contradictoryTxnIds when the provided evidence weakens the hypothesis.
+2. Connect hypotheses to technicalFindingIds only when those IDs appear in TECHNICAL FORENSICS.
+3. State benign explanations and unresolved questions for each hypothesis.
+4. Recommend targeted checks or documents that could confirm or reject the hypotheses. Do not recommend escalation as an automatic outcome.
+5. Do not mention, infer, restate, or adjust any probability, percentage, score, or risk band.
+6. Every factual sentence in executiveAssessment and each rationale must cite one or more provided transaction IDs inline as [txn 123] or explicitly state the transaction-level evidence gap.
+
+Reply with ONLY this JSON:
+{
+  "aiInvestigation": {
+    "executiveAssessment": "Evidence-grounded summary without any probability or score language",
+    "hypotheses": [{
+      "hypothesisId": "AI-HYP-01",
+      "title": "...",
+      "priority": "high|medium|low",
+      "status": "supported|plausible|inconclusive|not_supported",
+      "rationale": "Grounded explanation citing [txn 123] inline",
+      "supportingTxnIds": [123],
+      "contradictoryTxnIds": [456],
+      "technicalFindingIds": ["TECH-SEQ-01"],
+      "benignExplanations": ["..."],
+      "unresolvedQuestions": ["..."]
+    }],
+    "recommendedActions": [{
+      "priority": "high|medium|low",
+      "action": "...",
+      "rationale": "...",
+      "evidenceNeeded": "Specific document, record, or check"
+    }],
+    "limitations": ["..."]
+  }
+}`;
+    const p6 = await callJson(p6System, p6User);
+    const aiInvestigation = coerceAiInvestigation(p6, validIds, validFindingIds);
+    await db
+      .update(analysisRunsTable)
+      .set({ aiInvestigation })
+      .where(eq(analysisRunsTable.id, runId));
+
     // ---- P4: case memo ---------------------------------------------------
     log.info("P4 case memo starting");
     const p4System = `You write disposition-ready AML case memos for ASIA Consulting (Kuwait). Professional, precise, no hedging filler, no emojis, no markdown syntax (plain text with UPPERCASE section headings). ${SHARED_GUARDRAILS}
@@ -462,6 +553,8 @@ PRIMARY FINDINGS: ${JSON.stringify(typologyFindings).slice(0, 5000)}
 PROFILE CONSISTENCY: ${JSON.stringify(profileConsistency)}
 CRITIC SCENARIOS: ${JSON.stringify(criticScenarios).slice(0, 4000)}
 RESIDUAL CONCERNS: ${JSON.stringify(residualUnexplained)}
+INVESTIGATION HYPOTHESES: ${JSON.stringify(aiInvestigation.hypotheses).slice(0, 5000)}
+RECOMMENDED INVESTIGATION ACTIONS: ${JSON.stringify(aiInvestigation.recommendedActions).slice(0, 3500)}
 
 Write the case memo (450-700 words) with these sections:
 SUBJECT AND SCOPE

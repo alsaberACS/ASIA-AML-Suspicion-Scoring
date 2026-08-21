@@ -13,6 +13,7 @@ import { computeFeatures } from "./features";
 import { findInternalPairs } from "./netting";
 import { evaluateRules } from "./rules";
 import { aggregate } from "./scoring";
+import { computeTechnicalAnalysis } from "./technical";
 import { BAND_SCALE, type BankBreakdown, type SubjectProfile, type Txn } from "./types";
 
 /**
@@ -103,6 +104,7 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
   const bundle = computeFeatures(txns, pairs, profile);
   const hits = evaluateRules(bundle, txns, profile);
   const score = aggregate(hits, bundle.features, dataQuality);
+  const technicalAnalysis = computeTechnicalAnalysis(txns, pairs, dataQuality);
   log.info(
     { probability: score.probability, band: score.band, fired: hits.filter((h) => h.fired).length },
     "deterministic scoring complete",
@@ -156,6 +158,7 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
       features: bundle.features as unknown[],
       ruleHits: hits as unknown[],
       drivers: score.drivers as unknown[],
+      technicalAnalysis: technicalAnalysis as unknown,
       internalTransfers: pairs as unknown[],
       bandScale: BAND_SCALE as unknown as unknown[],
     })

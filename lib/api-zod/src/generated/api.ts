@@ -381,6 +381,28 @@ export const AnalyzeCaseResponse = zod.object({
   "featureKey": zod.string().nullish(),
   "txnIds": zod.array(zod.int()).optional()
 })),
+  "technicalAnalysis": zod.object({
+  "engineVersion": zod.string(),
+  "testedTransactionCount": zod.int(),
+  "dataQualityScore": zod.number(),
+  "testsExecuted": zod.array(zod.string()),
+  "gatedTests": zod.array(zod.object({
+  "testId": zod.string(),
+  "reason": zod.string()
+})),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['amount_outlier', 'behavior_change', 'counterparty_concentration', 'sequence_pattern', 'network_circulation', 'cross_bank_pattern']),
+  "title": zod.string(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "summary": zod.string(),
+  "metricValue": zod.number().nullable(),
+  "benchmark": zod.string(),
+  "methodology": zod.string(),
+  "caveat": zod.string().nullable(),
+  "txnIds": zod.array(zod.int())
+}))
+}),
   "internalTransfers": zod.array(zod.object({
   "id": zod.int(),
   "debitTxnId": zod.int(),
@@ -430,6 +452,28 @@ export const AnalyzeCaseResponse = zod.object({
   "severity": zod.enum(['high', 'medium', 'low'])
 })).optional(),
   "residualUnexplained": zod.array(zod.string()).optional(),
+  "aiInvestigation": zod.union([zod.object({
+  "executiveAssessment": zod.string(),
+  "hypotheses": zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['supported', 'plausible', 'inconclusive', 'not_supported']),
+  "rationale": zod.string(),
+  "supportingTxnIds": zod.array(zod.int()),
+  "contradictoryTxnIds": zod.array(zod.int()),
+  "technicalFindingIds": zod.array(zod.string()),
+  "benignExplanations": zod.array(zod.string()),
+  "unresolvedQuestions": zod.array(zod.string())
+})),
+  "recommendedActions": zod.array(zod.object({
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "action": zod.string(),
+  "rationale": zod.string(),
+  "evidenceNeeded": zod.string()
+})),
+  "limitations": zod.array(zod.string())
+}),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
@@ -511,6 +555,28 @@ export const GetLatestAnalysisResponse = zod.object({
   "featureKey": zod.string().nullish(),
   "txnIds": zod.array(zod.int()).optional()
 })),
+  "technicalAnalysis": zod.object({
+  "engineVersion": zod.string(),
+  "testedTransactionCount": zod.int(),
+  "dataQualityScore": zod.number(),
+  "testsExecuted": zod.array(zod.string()),
+  "gatedTests": zod.array(zod.object({
+  "testId": zod.string(),
+  "reason": zod.string()
+})),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['amount_outlier', 'behavior_change', 'counterparty_concentration', 'sequence_pattern', 'network_circulation', 'cross_bank_pattern']),
+  "title": zod.string(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "summary": zod.string(),
+  "metricValue": zod.number().nullable(),
+  "benchmark": zod.string(),
+  "methodology": zod.string(),
+  "caveat": zod.string().nullable(),
+  "txnIds": zod.array(zod.int())
+}))
+}),
   "internalTransfers": zod.array(zod.object({
   "id": zod.int(),
   "debitTxnId": zod.int(),
@@ -560,6 +626,28 @@ export const GetLatestAnalysisResponse = zod.object({
   "severity": zod.enum(['high', 'medium', 'low'])
 })).optional(),
   "residualUnexplained": zod.array(zod.string()).optional(),
+  "aiInvestigation": zod.union([zod.object({
+  "executiveAssessment": zod.string(),
+  "hypotheses": zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['supported', 'plausible', 'inconclusive', 'not_supported']),
+  "rationale": zod.string(),
+  "supportingTxnIds": zod.array(zod.int()),
+  "contradictoryTxnIds": zod.array(zod.int()),
+  "technicalFindingIds": zod.array(zod.string()),
+  "benignExplanations": zod.array(zod.string()),
+  "unresolvedQuestions": zod.array(zod.string())
+})),
+  "recommendedActions": zod.array(zod.object({
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "action": zod.string(),
+  "rationale": zod.string(),
+  "evidenceNeeded": zod.string()
+})),
+  "limitations": zod.array(zod.string())
+}),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
@@ -641,6 +729,28 @@ export const GetAnalysisRunResponse = zod.object({
   "featureKey": zod.string().nullish(),
   "txnIds": zod.array(zod.int()).optional()
 })),
+  "technicalAnalysis": zod.object({
+  "engineVersion": zod.string(),
+  "testedTransactionCount": zod.int(),
+  "dataQualityScore": zod.number(),
+  "testsExecuted": zod.array(zod.string()),
+  "gatedTests": zod.array(zod.object({
+  "testId": zod.string(),
+  "reason": zod.string()
+})),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['amount_outlier', 'behavior_change', 'counterparty_concentration', 'sequence_pattern', 'network_circulation', 'cross_bank_pattern']),
+  "title": zod.string(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "summary": zod.string(),
+  "metricValue": zod.number().nullable(),
+  "benchmark": zod.string(),
+  "methodology": zod.string(),
+  "caveat": zod.string().nullable(),
+  "txnIds": zod.array(zod.int())
+}))
+}),
   "internalTransfers": zod.array(zod.object({
   "id": zod.int(),
   "debitTxnId": zod.int(),
@@ -690,6 +800,28 @@ export const GetAnalysisRunResponse = zod.object({
   "severity": zod.enum(['high', 'medium', 'low'])
 })).optional(),
   "residualUnexplained": zod.array(zod.string()).optional(),
+  "aiInvestigation": zod.union([zod.object({
+  "executiveAssessment": zod.string(),
+  "hypotheses": zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['supported', 'plausible', 'inconclusive', 'not_supported']),
+  "rationale": zod.string(),
+  "supportingTxnIds": zod.array(zod.int()),
+  "contradictoryTxnIds": zod.array(zod.int()),
+  "technicalFindingIds": zod.array(zod.string()),
+  "benignExplanations": zod.array(zod.string()),
+  "unresolvedQuestions": zod.array(zod.string())
+})),
+  "recommendedActions": zod.array(zod.object({
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "action": zod.string(),
+  "rationale": zod.string(),
+  "evidenceNeeded": zod.string()
+})),
+  "limitations": zod.array(zod.string())
+}),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),

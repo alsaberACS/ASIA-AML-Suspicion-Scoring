@@ -4,9 +4,43 @@ import type {
   CaseRow,
   DispositionRow,
 } from "@workspace/db";
+import type { TechnicalAnalysis } from "./types";
 
 const iso = (d: Date | string | null): string | null =>
   d == null ? null : d instanceof Date ? d.toISOString() : String(d);
+
+function normalizeTechnicalAnalysis(
+  value: unknown,
+  testedTransactionCount: number,
+  dataQualityScore: number,
+): TechnicalAnalysis {
+  const candidate = value as Partial<TechnicalAnalysis> | null;
+  if (
+    candidate &&
+    typeof candidate.engineVersion === "string" &&
+    typeof candidate.testedTransactionCount === "number" &&
+    typeof candidate.dataQualityScore === "number" &&
+    Array.isArray(candidate.testsExecuted) &&
+    Array.isArray(candidate.gatedTests) &&
+    Array.isArray(candidate.findings)
+  ) {
+    return candidate as TechnicalAnalysis;
+  }
+  return {
+    engineVersion: "legacy-unavailable",
+    testedTransactionCount,
+    dataQualityScore,
+    testsExecuted: [],
+    gatedTests: [
+      {
+        testId: "legacy_analysis_run",
+        reason:
+          "Technical forensics was not available when this analysis was created. Re-run analysis to generate it.",
+      },
+    ],
+    findings: [],
+  };
+}
 
 export function dispositionToApi(row: DispositionRow) {
   return {
@@ -150,6 +184,11 @@ export function runToApi(run: AnalysisRunRow, disposition: DispositionRow | null
     features: (run.features ?? []) as never[],
     ruleHits: (run.ruleHits ?? []) as never[],
     drivers: (run.drivers ?? []) as never[],
+    technicalAnalysis: normalizeTechnicalAnalysis(
+      run.technicalAnalysis,
+      run.txnCount,
+      run.dataQualityScore,
+    ) as never,
     internalTransfers: (run.internalTransfers ?? []) as never[],
     bandScale: (run.bandScale ?? []) as never[],
     typologyFindings: (run.typologyFindings ?? undefined) as never[] | undefined,
@@ -158,6 +197,7 @@ export function runToApi(run: AnalysisRunRow, disposition: DispositionRow | null
     criticScenarios: (run.criticScenarios ?? undefined) as never[] | undefined,
     methodologicalObjections: (run.methodologicalObjections ?? undefined) as never[] | undefined,
     residualUnexplained: run.residualUnexplained ?? undefined,
+    aiInvestigation: (run.aiInvestigation ?? null) as never,
     caseMemo: run.caseMemo,
     disposition: disposition ? dispositionToApi(disposition) : null,
   };
