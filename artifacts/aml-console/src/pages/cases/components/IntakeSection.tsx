@@ -78,37 +78,58 @@ export default function IntakeSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const disclosureInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const dragDepth = useRef(0);
+  // Latest-closure ref so the mount-once window listeners always call the
+  // current ingestFiles (fresh caseId, mutation pending state, toasts).
+  const ingestFilesRef = useRef<(incoming: File[]) => void>(() => {});
 
   const resetDragState = () => {
-    dragDepth.current = 0;
     setIsDragging(false);
   };
 
-  // While the intake panel is mounted:
-  // - stop the browser from navigating away when a file is dropped outside
-  //   the dropzone (default behavior opens the file and loses the SPA state);
-  // - reset drag state on terminal events that may never reach the zone's own
-  //   handlers (drop elsewhere, dragend, Escape-cancel / leaving the window),
-  //   so the overlay can never get stuck visible.
+  // While the intake panel is mounted the WHOLE page is a dropzone:
+  // - dragging any file into the window shows the overlay immediately;
+  // - dropping anywhere ingests it (PDF -> self report, CSV/XLSX/XLS -> parser);
+  // - preventDefault on dragover/drop stops the browser from opening the file;
+  // - dragend / leaving the window resets, so the overlay can never get stuck.
   useEffect(() => {
-    const prevent = (e: DragEvent) => e.preventDefault();
-    const endDrag = (e: DragEvent) => {
+    const hasFiles = (e: DragEvent) =>
+      Array.from(e.dataTransfer?.types ?? []).includes('Files');
+    const onDragEnter = (e: DragEvent) => {
+      if (hasFiles(e)) setIsDragging(true);
+    };
+    const onDragOver = (e: DragEvent) => {
+      // File drags only: preventDefault marks the window as a drop target,
+      // and doing it unconditionally would suppress native text/link drops.
+      if (!hasFiles(e)) return;
       e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      // A nested drop target that already handled this drop takes precedence.
+      if (e.defaultPrevented) {
+        resetDragState();
+        return;
+      }
+      e.preventDefault();
+      ingestFilesRef.current(Array.from(e.dataTransfer?.files ?? []));
       resetDragState();
     };
+    const onDragEnd = () => resetDragState();
     const onWindowDragLeave = (e: DragEvent) => {
       // relatedTarget is null when the drag left the window or was cancelled.
       if (e.relatedTarget === null) resetDragState();
     };
-    window.addEventListener('dragover', prevent);
-    window.addEventListener('drop', endDrag);
-    window.addEventListener('dragend', endDrag);
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    window.addEventListener('dragend', onDragEnd);
     window.addEventListener('dragleave', onWindowDragLeave);
     return () => {
-      window.removeEventListener('dragover', prevent);
-      window.removeEventListener('drop', endDrag);
-      window.removeEventListener('dragend', endDrag);
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+      window.removeEventListener('dragend', onDragEnd);
       window.removeEventListener('dragleave', onWindowDragLeave);
       resetDragState();
     };
@@ -239,6 +260,7 @@ export default function IntakeSection({
       reader.readAsDataURL(file);
     });
   };
+  ingestFilesRef.current = ingestFiles;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     ingestFiles(Array.from(e.target.files ?? []));
@@ -246,36 +268,6 @@ export default function IntakeSection({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  // Drag & drop: depth counter avoids overlay flicker when dragging across children.
-  const dragHasFiles = (e: React.DragEvent) =>
-    Array.from(e.dataTransfer.types).includes('Files');
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    if (!dragHasFiles(e)) return;
-    e.preventDefault();
-    dragDepth.current += 1;
-    setIsDragging(true);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!dragHasFiles(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!dragHasFiles(e)) return;
-    dragDepth.current = Math.max(0, dragDepth.current - 1);
-    if (dragDepth.current === 0) setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    if (!dragHasFiles(e)) return;
-    e.preventDefault();
-    resetDragState();
-    ingestFiles(Array.from(e.dataTransfer.files));
   };
 
   const handleDelete = (fileId: number, filename: string) => {
@@ -314,23 +306,16 @@ export default function IntakeSection({
   };
 
   return (
-    <div
-      className="relative"
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      data-testid="dropzone-intake"
-    >
+    <div className="relative" data-testid="dropzone-intake">
       {isDragging && (
         <div
           aria-hidden
           data-testid="overlay-drop"
-          className="pointer-events-none absolute -inset-3 z-20 flex flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-primary/70 bg-background/85 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-3 z-50 flex flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-primary/70 bg-background/85 backdrop-blur-sm"
         >
           <Upload className="h-10 w-10 text-primary" />
           <div className="font-mono text-sm uppercase tracking-widest text-primary">
-            Drop files to ingest
+            Drop files anywhere to ingest
           </div>
           <div className="font-mono text-xs text-muted-foreground">
             Statements: CSV, XLSX, XLS — Self report: PDF
