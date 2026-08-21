@@ -13,3 +13,8 @@ description: Environment and codegen quirks in this pnpm workspace that repeated
 - Regenerate API clients ONLY with: pnpm --filter @workspace/api-spec run codegen
 - **Why:** bare `orval` emits `import * as zod from 'zod'` while the generated code uses zod v4 APIs (zod.int()); the codegen script runs patch-zod-import.mjs to point generated schemas at zod/v4, then typechecks libs.
 - **How to apply:** any time lib/api-spec/openapi.yaml changes; never run plain `pnpm exec orval`.
+
+## Vite first-import optimize reload (transient hook errors)
+The first runtime import of a dependency that is in package.json but was never imported before (seen with framer-motion, then next-themes via the sonner wrapper) makes the live vite session optimize it: "new dependencies optimized ... reloading", plus one-off `Invalid hook call` / `Cannot read properties of null (reading 'useContext')` errors in already-open tabs.
+**Why:** vite rewrites the dep graph mid-session; open tabs briefly execute mismatched module copies.
+**How to apply:** do not chase dual-React ghosts. Confirm `ls node_modules/.pnpm | grep -E '^react@'` shows one copy, then do a fresh page load — a clean console means it was the optimize blip, not a real bug.
