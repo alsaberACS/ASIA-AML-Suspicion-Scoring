@@ -7,6 +7,7 @@ import {
   Bell,
   Search,
   Check,
+  LockKeyhole,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ReactNode, useState } from 'react';
 import { THEMES, applyTheme, getSavedTheme, type ThemeId } from '@/lib/theme';
+import { lockConsole } from '@/lib/access';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -151,6 +153,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
                   Applies instantly and is remembered on this device.
                 </p>
+                <div className="border-t border-border mt-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={lockConsole}
+                    data-testid="button-lock-console"
+                    className="w-full flex items-center gap-2 p-2 rounded-sm text-left font-mono text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <LockKeyhole className="h-3.5 w-3.5" />
+                    Lock console
+                  </button>
+                </div>
               </PopoverContent>
             </Popover>
           </div>

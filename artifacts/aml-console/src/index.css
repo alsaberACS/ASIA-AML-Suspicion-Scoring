@@ -353,3 +353,32 @@
     animation: flag-pulse 2.4s ease-in-out infinite;
   }
 }
+
+/* Landing page: slow Ken Burns drift on the surveillance-eye backdrop and a
+   sweeping scanline. Both are decorative (aria-hidden containers). */
+@keyframes landing-zoom {
+  0%, 100% { transform: scale(1.05); }
+  50% { transform: scale(1.13); }
+}
+@keyframes landing-scan {
+  0% { top: -5%; opacity: 0; }
+  8% { opacity: 0.85; }
+  92% { opacity: 0.85; }
+  100% { top: 105%; opacity: 0; }
+}
+
+/* Landing animation classes: motion only when the user allows it. The
+   scanline is hidden at rest (top offscreen, opacity 0), so reduced-motion
+   users simply never see it; the backdrop stays static. */
+.landing-scan {
+  top: -5%;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-zoom {
+    animation: landing-zoom 28s ease-in-out infinite;
+  }
+  .landing-scan {
+    animation: landing-scan 7s linear infinite;
+  }
+}
