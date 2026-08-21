@@ -28,6 +28,8 @@ import type {
   CaseInput,
   CaseUpdate,
   DashboardSummary,
+  Disclosure,
+  DisclosureUpload,
   Disposition,
   DispositionInput,
   HealthStatus,
@@ -1562,4 +1564,224 @@ export function useGetCaseNetwork<TData = Awaited<ReturnType<typeof getCaseNetwo
 
 
 
+
+export const getGetCaseDisclosureUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure`
+}
+
+/**
+ * @summary Get the uploaded financial disclosure (self report) and its AI extraction
+ */
+export const getCaseDisclosure = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<Disclosure> => {
+
+  return customFetch<Disclosure>(getGetCaseDisclosureUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCaseDisclosureQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/disclosure`
+    ] as const;
+    }
+
+
+export const getGetCaseDisclosureQueryOptions = <TData = Awaited<ReturnType<typeof getCaseDisclosure>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosure>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCaseDisclosureQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaseDisclosure>>> = ({ signal }) => getCaseDisclosure(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosure>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCaseDisclosureQueryResult = NonNullable<Awaited<ReturnType<typeof getCaseDisclosure>>>
+export type GetCaseDisclosureQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the uploaded financial disclosure (self report) and its AI extraction
+ */
+
+export function useGetCaseDisclosure<TData = Awaited<ReturnType<typeof getCaseDisclosure>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosure>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCaseDisclosureQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUploadCaseDisclosureUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure`
+}
+
+/**
+ * @summary Upload the Nazaha financial disclosure PDF and start AI extraction
+ */
+export const uploadCaseDisclosure = async (caseId: number,
+    disclosureUpload: DisclosureUpload, options?: Parameters<typeof customFetch>[1]): Promise<Disclosure> => {
+
+  return customFetch<Disclosure>(getUploadCaseDisclosureUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disclosureUpload)
+  }
+);}
+
+
+
+
+
+export const getUploadCaseDisclosureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCaseDisclosure>>, TError,{caseId: number;data: BodyType<DisclosureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadCaseDisclosure>>, TError,{caseId: number;data: BodyType<DisclosureUpload>}, TContext> => {
+
+const mutationKey = ['uploadCaseDisclosure'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadCaseDisclosure>>, {caseId: number;data: BodyType<DisclosureUpload>}> = (props) => {
+          const {caseId,data} = props ?? {};
+
+          return  uploadCaseDisclosure(caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadCaseDisclosureMutationResult = NonNullable<Awaited<ReturnType<typeof uploadCaseDisclosure>>>
+    export type UploadCaseDisclosureMutationBody = BodyType<DisclosureUpload>
+    export type UploadCaseDisclosureMutationError = ErrorType<void>
+
+    /**
+ * @summary Upload the Nazaha financial disclosure PDF and start AI extraction
+ */
+export const useUploadCaseDisclosure = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCaseDisclosure>>, TError,{caseId: number;data: BodyType<DisclosureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof uploadCaseDisclosure>>,
+        TError,
+        {caseId: number;data: BodyType<DisclosureUpload>},
+        TContext
+      > => {
+      return useMutation(getUploadCaseDisclosureMutationOptions(options));
+    }
+
+export const getDeleteCaseDisclosureUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure`
+}
+
+/**
+ * @summary Delete the case disclosure
+ */
+export const deleteCaseDisclosure = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteCaseDisclosureUrl(caseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCaseDisclosureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCaseDisclosure>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCaseDisclosure>>, TError,{caseId: number}, TContext> => {
+
+const mutationKey = ['deleteCaseDisclosure'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCaseDisclosure>>, {caseId: number}> = (props) => {
+          const {caseId} = props ?? {};
+
+          return  deleteCaseDisclosure(caseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCaseDisclosureMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCaseDisclosure>>>
+
+    export type DeleteCaseDisclosureMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete the case disclosure
+ */
+export const useDeleteCaseDisclosure = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCaseDisclosure>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCaseDisclosure>>,
+        TError,
+        {caseId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCaseDisclosureMutationOptions(options));
+    }
 

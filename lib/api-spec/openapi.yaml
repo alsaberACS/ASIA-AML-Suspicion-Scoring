@@ -398,6 +398,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NetworkGraph"
+  /cases/{caseId}/disclosure:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getCaseDisclosure
+      summary: Get the uploaded financial disclosure (self report) and its AI extraction
+      responses:
+        "200":
+          description: Disclosure with extraction state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Disclosure" }
+        "404":
+          description: No disclosure uploaded for this case
+    post:
+      operationId: uploadCaseDisclosure
+      summary: Upload the Nazaha financial disclosure PDF and start AI extraction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisclosureUpload" }
+      responses:
+        "201":
+          description: Disclosure stored; extraction running in background
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Disclosure" }
+        "404":
+          description: Case not found
+        "422":
+          description: Not a valid PDF upload
+    delete:
+      operationId: deleteCaseDisclosure
+      summary: Delete the case disclosure
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: No disclosure uploaded for this case
 components:
   parameters:
     CaseId:
@@ -947,10 +990,244 @@ components:
           oneOf:
             - $ref: "#/components/schemas/SanctionsScreening"
             - type: "null"
+        profilePrediction:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePrediction"
+            - type: "null"
+        disclosureReconciliation:
+          oneOf:
+            - $ref: "#/components/schemas/DisclosureReconciliation"
+            - type: "null"
         disposition:
           oneOf:
             - $ref: "#/components/schemas/Disposition"
             - type: "null"
+    ProfilePredictionField:
+      type: object
+      required: [value, confidence, rationale]
+      properties:
+        value: { type: string }
+        confidence: { type: string, enum: [low, medium, high] }
+        rationale: { type: string }
+    ProfilePredictionIncome:
+      type: object
+      required: [value, confidence, rationale]
+      properties:
+        value: { type: number }
+        confidence: { type: string, enum: [low, medium, high] }
+        rationale: { type: string }
+    ProfilePredictionCountries:
+      type: object
+      required: [value, confidence, rationale]
+      properties:
+        value:
+          type: array
+          items: { type: string }
+        confidence: { type: string, enum: [low, medium, high] }
+        rationale: { type: string }
+    ProfilePrediction:
+      type: object
+      required: [generatedAt, basis]
+      properties:
+        generatedAt: { type: string }
+        basis: { type: string }
+        declaredOccupation:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePredictionField"
+            - type: "null"
+        declaredMonthlyIncomeKwd:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePredictionIncome"
+            - type: "null"
+        declaredBusinessActivity:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePredictionField"
+            - type: "null"
+        expectedCountries:
+          oneOf:
+            - $ref: "#/components/schemas/ProfilePredictionCountries"
+            - type: "null"
+    DisclosureUpload:
+      type: object
+      required: [filename, contentBase64]
+      properties:
+        filename: { type: string }
+        contentBase64: { type: string }
+    DisclosureDeclarant:
+      type: object
+      properties:
+        name: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        residenceCountry: { type: ["string", "null"] }
+        gender: { type: ["string", "null"] }
+        civilId: { type: ["string", "null"] }
+        passportNo: { type: ["string", "null"] }
+        jobTitle: { type: ["string", "null"] }
+        employer: { type: ["string", "null"] }
+        jobStartDate: { type: ["string", "null"] }
+        jobEndDate: { type: ["string", "null"] }
+        workPhone: { type: ["string", "null"] }
+        homeAddress: { type: ["string", "null"] }
+        mobile: { type: ["string", "null"] }
+        homePhone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        monthlySalaryKwd: { type: ["number", "null"] }
+    DisclosureChild:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        dateOfBirth: { type: ["string", "null"] }
+        relation: { type: ["string", "null"] }
+        idType: { type: ["string", "null"] }
+        idNumber: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureRealEstate:
+      type: object
+      required: [location]
+      properties:
+        ownerName: { type: ["string", "null"] }
+        location: { type: string }
+        areaSqm: { type: ["number", "null"] }
+        ownershipPct: { type: ["number", "null"] }
+        propertyType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureUsufruct:
+      type: object
+      required: [location]
+      properties:
+        beneficiaryName: { type: ["string", "null"] }
+        location: { type: string }
+        areaSqm: { type: ["number", "null"] }
+        usageType: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureSecurity:
+      type: object
+      required: [company]
+      properties:
+        ownerName: { type: ["string", "null"] }
+        instrumentType: { type: ["string", "null"] }
+        company: { type: string }
+        companyCountry: { type: ["string", "null"] }
+        quantityOrPct: { type: ["string", "null"] }
+        listed: { type: ["boolean", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureAccount:
+      type: object
+      required: [institution]
+      properties:
+        ownerName: { type: ["string", "null"] }
+        institution: { type: string }
+        institutionCountry: { type: ["string", "null"] }
+        kind: { type: ["string", "null"] }
+        valueKwd: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureDebt:
+      type: object
+      required: [creditor]
+      properties:
+        debtorName: { type: ["string", "null"] }
+        creditor: { type: string }
+        creditorCountry: { type: ["string", "null"] }
+        amountKwd: { type: ["number", "null"] }
+        finalRepaymentDate: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureMovable:
+      type: object
+      required: [description]
+      properties:
+        ownerName: { type: ["string", "null"] }
+        description: { type: string }
+        count: { type: ["number", "null"] }
+        totalValueKwd: { type: ["number", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+    DisclosureExtraction:
+      type: object
+      required: [declarationType, minorChildren, realEstate, usufructRights, securities, bankAccountsAndDeposits, debtsOwed, valuableMovables, sectionsMarkedNone, extractionWarnings]
+      properties:
+        declarationType: { type: string, enum: [first, update, final, unknown] }
+        declarationDate: { type: ["string", "null"] }
+        pageCount: { type: ["integer", "null"] }
+        summaryEn: { type: ["string", "null"] }
+        generalNotes: { type: ["string", "null"] }
+        declarant:
+          oneOf:
+            - $ref: "#/components/schemas/DisclosureDeclarant"
+            - type: "null"
+        minorChildren:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureChild" }
+        realEstate:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureRealEstate" }
+        usufructRights:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureUsufruct" }
+        securities:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureSecurity" }
+        bankAccountsAndDeposits:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureAccount" }
+        debtsOwed:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureDebt" }
+        valuableMovables:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureMovable" }
+        sectionsMarkedNone:
+          type: array
+          items: { type: string }
+        extractionWarnings:
+          type: array
+          items: { type: string }
+    Disclosure:
+      type: object
+      required: [id, caseId, filename, fileSizeBytes, status, uploadedAt]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        filename: { type: string }
+        fileSizeBytes: { type: integer }
+        status: { type: string, enum: [processing, ready, failed] }
+        error: { type: ["string", "null"] }
+        extraction:
+          oneOf:
+            - $ref: "#/components/schemas/DisclosureExtraction"
+            - type: "null"
+        uploadedAt: { type: string }
+        extractedAt: { type: ["string", "null"] }
+    DisclosureReconciliationFinding:
+      type: object
+      required: [findingId, category, severity, title, detail, txnIds, disclosureRefs]
+      properties:
+        findingId: { type: string }
+        category: { type: string, enum: [undeclared_account, declared_account_activity, income_mismatch, wealth_inconsistency, asset_transaction, debt_service, rental_or_usufruct_income, securities_activity, dependent_activity, corroboration, coverage_gap, other] }
+        severity: { type: string, enum: [info, notable, significant] }
+        title: { type: string }
+        detail: { type: string }
+        txnIds:
+          type: array
+          items: { type: integer }
+        disclosureRefs:
+          type: array
+          items: { type: string }
+    DisclosureReconciliation:
+      type: object
+      required: [generatedAt, summary, findings]
+      properties:
+        generatedAt: { type: string }
+        summary: { type: string }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureReconciliationFinding" }
     SanctionsMatch:
       type: object
       required: [listId, entryId, listedName, tier, entryType, programs]

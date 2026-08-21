@@ -13,12 +13,14 @@ import type { AnalysisRunStatus } from './analysisRunStatus';
 import type { BandThreshold } from './bandThreshold';
 import type { BankBreakdown } from './bankBreakdown';
 import type { BenignScenario } from './benignScenario';
+import type { DisclosureReconciliation } from './disclosureReconciliation';
 import type { Disposition } from './disposition';
 import type { Driver } from './driver';
 import type { FeatureValue } from './featureValue';
 import type { InternalTransferPair } from './internalTransferPair';
 import type { MethodologicalObjection } from './methodologicalObjection';
 import type { ProfileConsistency } from './profileConsistency';
+import type { ProfilePrediction } from './profilePrediction';
 import type { RuleHit } from './ruleHit';
 import type { SanctionsScreening } from './sanctionsScreening';
 import type { TechnicalAnalysis } from './technicalAnalysis';
@@ -65,5 +67,7 @@ export interface AnalysisRun {
   caseMemo?: string | null;
   aiProgress?: AiProgress | null;
   sanctionsScreening?: SanctionsScreening | null;
+  profilePrediction?: ProfilePrediction | null;
+  disclosureReconciliation?: DisclosureReconciliation | null;
   disposition?: Disposition | null;
 }

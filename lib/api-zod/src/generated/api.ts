@@ -537,6 +537,43 @@ export const AnalyzeCaseResponse = zod.object({
   "possible": zod.int()
 })
 }),zod.null()]).optional(),
+  "profilePrediction": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "basis": zod.string(),
+  "declaredOccupation": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredMonthlyIncomeKwd": zod.union([zod.object({
+  "value": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredBusinessActivity": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "expectedCountries": zod.union([zod.object({
+  "value": zod.array(zod.string()),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "disclosureReconciliation": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "summary": zod.string(),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['undeclared_account', 'declared_account_activity', 'income_mismatch', 'wealth_inconsistency', 'asset_transaction', 'debt_service', 'rental_or_usufruct_income', 'securities_activity', 'dependent_activity', 'corroboration', 'coverage_gap', 'other']),
+  "severity": zod.enum(['info', 'notable', 'significant']),
+  "title": zod.string(),
+  "detail": zod.string(),
+  "txnIds": zod.array(zod.int()),
+  "disclosureRefs": zod.array(zod.string())
+}))
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
@@ -778,6 +815,43 @@ export const GetLatestAnalysisResponse = zod.object({
   "possible": zod.int()
 })
 }),zod.null()]).optional(),
+  "profilePrediction": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "basis": zod.string(),
+  "declaredOccupation": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredMonthlyIncomeKwd": zod.union([zod.object({
+  "value": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredBusinessActivity": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "expectedCountries": zod.union([zod.object({
+  "value": zod.array(zod.string()),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "disclosureReconciliation": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "summary": zod.string(),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['undeclared_account', 'declared_account_activity', 'income_mismatch', 'wealth_inconsistency', 'asset_transaction', 'debt_service', 'rental_or_usufruct_income', 'securities_activity', 'dependent_activity', 'corroboration', 'coverage_gap', 'other']),
+  "severity": zod.enum(['info', 'notable', 'significant']),
+  "title": zod.string(),
+  "detail": zod.string(),
+  "txnIds": zod.array(zod.int()),
+  "disclosureRefs": zod.array(zod.string())
+}))
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
@@ -1018,6 +1092,43 @@ export const GetAnalysisRunResponse = zod.object({
   "strong": zod.int(),
   "possible": zod.int()
 })
+}),zod.null()]).optional(),
+  "profilePrediction": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "basis": zod.string(),
+  "declaredOccupation": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredMonthlyIncomeKwd": zod.union([zod.object({
+  "value": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredBusinessActivity": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "expectedCountries": zod.union([zod.object({
+  "value": zod.array(zod.string()),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "disclosureReconciliation": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "summary": zod.string(),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['undeclared_account', 'declared_account_activity', 'income_mismatch', 'wealth_inconsistency', 'asset_transaction', 'debt_service', 'rental_or_usufruct_income', 'securities_activity', 'dependent_activity', 'corroboration', 'coverage_gap', 'other']),
+  "severity": zod.enum(['info', 'notable', 'significant']),
+  "title": zod.string(),
+  "detail": zod.string(),
+  "txnIds": zod.array(zod.int()),
+  "disclosureRefs": zod.array(zod.string())
+}))
 }),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
@@ -1293,6 +1404,43 @@ export const RetryAiAnalysisResponse = zod.object({
   "possible": zod.int()
 })
 }),zod.null()]).optional(),
+  "profilePrediction": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "basis": zod.string(),
+  "declaredOccupation": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredMonthlyIncomeKwd": zod.union([zod.object({
+  "value": zod.number(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "declaredBusinessActivity": zod.union([zod.object({
+  "value": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional(),
+  "expectedCountries": zod.union([zod.object({
+  "value": zod.array(zod.string()),
+  "confidence": zod.enum(['low', 'medium', 'high']),
+  "rationale": zod.string()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "disclosureReconciliation": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "summary": zod.string(),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['undeclared_account', 'declared_account_activity', 'income_mismatch', 'wealth_inconsistency', 'asset_transaction', 'debt_service', 'rental_or_usufruct_income', 'securities_activity', 'dependent_activity', 'corroboration', 'coverage_gap', 'other']),
+  "severity": zod.enum(['info', 'notable', 'significant']),
+  "title": zod.string(),
+  "detail": zod.string(),
+  "txnIds": zod.array(zod.int()),
+  "disclosureRefs": zod.array(zod.string())
+}))
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
@@ -1414,5 +1562,236 @@ export const GetCaseNetworkResponse = zod.object({
   "txnCount": zod.int()
 }))
 })
+
+
+/**
+ * @summary Get the uploaded financial disclosure (self report) and its AI extraction
+ */
+export const GetCaseDisclosureParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const GetCaseDisclosureResponse = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "error": zod.string().nullish(),
+  "extraction": zod.union([zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string())
+}),zod.null()]).optional(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Upload the Nazaha financial disclosure PDF and start AI extraction
+ */
+export const UploadCaseDisclosureParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const UploadCaseDisclosureBody = zod.object({
+  "filename": zod.string(),
+  "contentBase64": zod.string()
+})
+
+export const UploadCaseDisclosureResponse = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "error": zod.string().nullish(),
+  "extraction": zod.union([zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string())
+}),zod.null()]).optional(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete the case disclosure
+ */
+export const DeleteCaseDisclosureParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const DeleteCaseDisclosureResponse = zod.void()
 
 

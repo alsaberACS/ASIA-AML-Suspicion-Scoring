@@ -78,6 +78,8 @@ export const analysisRunsTable = pgTable(
     caseMemo: text("case_memo"),
     aiProgress: jsonb("ai_progress").$type<unknown>(),
     sanctionsScreening: jsonb("sanctions_screening").$type<unknown>(),
+    profilePrediction: jsonb("profile_prediction").$type<unknown>(),
+    disclosureReconciliation: jsonb("disclosure_reconciliation").$type<unknown>(),
   },
   (t) => [index("analysis_runs_case_idx").on(t.caseId)],
 );

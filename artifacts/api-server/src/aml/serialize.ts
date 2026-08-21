@@ -3,6 +3,7 @@ import type {
   BankFileRow,
   CaseRow,
   DispositionRow,
+  DisclosureRow,
 } from "@workspace/db";
 import type { TechnicalAnalysis } from "./types";
 
@@ -204,6 +205,22 @@ export function runToApi(run: AnalysisRunRow, disposition: DispositionRow | null
     caseMemo: run.caseMemo,
     aiProgress: (run.aiProgress ?? null) as never,
     sanctionsScreening: (run.sanctionsScreening ?? null) as never,
+    profilePrediction: (run.profilePrediction ?? null) as never,
+    disclosureReconciliation: (run.disclosureReconciliation ?? null) as never,
     disposition: disposition ? dispositionToApi(disposition) : null,
+  };
+}
+
+export function disclosureToApi(row: DisclosureRow) {
+  return {
+    id: row.id,
+    caseId: row.caseId,
+    filename: row.filename,
+    fileSizeBytes: row.fileSizeBytes,
+    status: row.status as "processing" | "ready" | "failed",
+    error: row.error,
+    extraction: (row.extraction ?? null) as never,
+    uploadedAt: iso(row.uploadedAt)!,
+    extractedAt: iso(row.extractedAt),
   };
 }

@@ -10,6 +10,12 @@ import type {
   TechnicalAnalysis,
 } from "./types";
 import { coerceAiInvestigation } from "./investigation-output";
+import {
+  anyProfileFieldMissing,
+  coerceProfilePrediction,
+  missingProfileFields,
+  type ProfilePrediction,
+} from "./profile-inference";
 
 /**
  * LLM analyst layers (P3 typology analysis, P5 adversarial critic, P4 memo).
@@ -19,6 +25,14 @@ import { coerceAiInvestigation } from "./investigation-output";
  * LLM reads evidence, reasons about typologies, argues the benign case, and
  * writes the memo - always citing transaction IDs from the provided data.
  */
+
+import { disclosuresTable } from "@workspace/db";
+import {
+  coerceDisclosureReconciliation,
+  renderDisclosureEvidence,
+  type DisclosureExtraction,
+  type DisclosureReconciliation,
+} from "./disclosure";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -158,8 +172,9 @@ function buildEvidence(args: {
   caseRow: typeof casesTable.$inferSelect;
   run: typeof analysisRunsTable.$inferSelect;
   txns: TxnLite[];
+  disclosure: DisclosureExtraction | null;
 }): string {
-  const { caseRow, run, txns } = args;
+  const { caseRow, run, txns, disclosure } = args;
   const byId = new Map(txns.map((t) => [t.id, t]));
   const features = (run.features ?? []) as unknown as FeatureValue[];
   const ruleHits = (run.ruleHits ?? []) as unknown as RuleHit[];
@@ -276,7 +291,7 @@ TECHNICAL FORENSICS (separate from and with no effect on the suspicion score)
 ${technicalLines || "- no technical anomaly crossed its evidence threshold"}
 
 GATED TECHNICAL TESTS
-${gatedTechnicalLines || "- none"}`;
+${gatedTechnicalLines || "- none"}${disclosure ? `\n\n${renderDisclosureEvidence(disclosure)}` : ""}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +387,8 @@ function coerceObjections(raw: unknown): unknown[] {
 export const AI_STAGES = [
   { stageId: "typology", label: "Typology analysis" },
   { stageId: "critic", label: "Adversarial critic" },
+  { stageId: "profile", label: "Profile estimation" },
+  { stageId: "reconciliation", label: "Disclosure reconciliation" },
   { stageId: "investigation", label: "Investigation hypotheses" },
   { stageId: "memo", label: "Case memo" },
 ] as const;
@@ -528,11 +545,30 @@ export async function runAiLayers(runId: number): Promise<void> {
     let aiInvestigation = (run.aiInvestigation ?? null) as
       | ReturnType<typeof coerceAiInvestigation>
       | null;
+    let profilePrediction = (run.profilePrediction ?? null) as ProfilePrediction | null;
+    const missingFields = missingProfileFields({
+      declaredOccupation: caseRow.declaredOccupation,
+      declaredMonthlyIncomeKwd: caseRow.declaredMonthlyIncomeKwd,
+      declaredBusinessActivity: caseRow.declaredBusinessActivity,
+      expectedCountries: (caseRow.expectedCountries ?? null) as string[] | null,
+    });
+    let disclosureReconciliation = (run.disclosureReconciliation ??
+      null) as DisclosureReconciliation | null;
+    const [disclosureRow] = await db
+      .select()
+      .from(disclosuresTable)
+      .where(eq(disclosuresTable.caseId, run.caseId));
+    const disclosureExtraction =
+      disclosureRow && disclosureRow.status === "ready" && disclosureRow.extraction
+        ? (disclosureRow.extraction as DisclosureExtraction)
+        : null;
     const doneByStage: Record<AiStageId, boolean> = {
       typology: typologyFindings != null,
       critic: criticScenarios != null,
+      profile: profilePrediction != null || !anyProfileFieldMissing(missingFields),
       investigation: aiInvestigation != null,
       memo: run.caseMemo != null,
+      reconciliation: disclosureReconciliation != null || disclosureRow == null,
     };
     if (doneByStage.typology || doneByStage.critic || doneByStage.investigation || doneByStage.memo) {
       log.info({ doneByStage }, "resuming AI layers from last completed stage");
@@ -559,7 +595,7 @@ export async function runAiLayers(runId: number): Promise<void> {
       void writeProgress().catch(() => undefined);
     }, HEARTBEAT_MS);
 
-    const evidence = buildEvidence({ caseRow, run, txns: txnRows });
+    let evidence = buildEvidence({ caseRow, run, txns: txnRows, disclosure: disclosureExtraction });
     const validIds = new Set(txnRows.map((t) => t.id));
 
     // ---- P3: typology analysis -----------------------------------------
@@ -645,6 +681,137 @@ Reply with ONLY this JSON:
       throw new Error("critic stage outputs missing after execution");
     }
 
+    // ---- P7: profile estimation (only for missing declared fields) ------
+    // Predictions are stored on the RUN for analyst review. They never write
+    // into the case's declared fields - that would make the declared-vs-
+    // observed comparison circular. The analyst adopts them explicitly.
+    if (!doneByStage.profile) {
+    await setStage("profile", "running");
+    log.info("P7 profile estimation starting");
+    const wanted: string[] = [];
+    if (missingFields.occupation) wanted.push("declaredOccupation");
+    if (missingFields.income) wanted.push("declaredMonthlyIncomeKwd");
+    if (missingFields.business) wanted.push("declaredBusinessActivity");
+    if (missingFields.countries) wanted.push("expectedCountries");
+    const p7System = `You estimate a plausible customer KYC profile from observed banking activity for AML investigation triage at ASIA Consulting (Kuwait). The subject has not declared these fields; investigators need a working hypothesis of what a legitimate declaration would plausibly look like, to verify with the customer. Estimates are hypotheses, never facts. ${SHARED_GUARDRAILS}
+Exception to rule 4: this task is explicitly an estimation exercise - give your best evidence-grounded estimate for each requested field and express uncertainty through the confidence value and rationale instead of refusing.`;
+    const p7User = `${evidence}
+
+TASK - The declared KYC profile is missing these fields: ${wanted.join(", ")}. Estimate ONLY these fields from the transaction evidence.
+
+Guidance:
+- declaredOccupation: the single most plausible occupation phrasing (e.g. "Salaried employee - private sector", "Self-employed - vehicle trading"). Recurring same-source salary-like credits suggest employment; diverse commercial narratives suggest self-employment.
+- declaredMonthlyIncomeKwd: one number, KWD per month - the sustainable legitimate income level the evidence supports. Prefer recurring salary-like credits; otherwise a conservative recurring-inflow estimate EXCLUDING one-off large transfers and unexplained lump sums.
+- declaredBusinessActivity: describe commercial activity only if the evidence shows it; otherwise use the value "None apparent from statements" with low confidence.
+- expectedCountries: countries this customer would plausibly declare for cross-border activity, from counterparty countries, SWIFT or remittance markers, and exchange-house narratives. Include Kuwait when domestic activity dominates.
+- Every rationale must cite transaction evidence inline as [txn 123].
+
+Reply with ONLY this JSON (omit fields that were not requested):
+{
+  "profilePrediction": {
+    "declaredOccupation": {"value": "...", "confidence": "low|medium|high", "rationale": "... [txn 1]"},
+    "declaredMonthlyIncomeKwd": {"value": 1500, "confidence": "low|medium|high", "rationale": "... [txn 2]"},
+    "declaredBusinessActivity": {"value": "...", "confidence": "low|medium|high", "rationale": "... [txn 3]"},
+    "expectedCountries": {"value": ["Kuwait"], "confidence": "low|medium|high", "rationale": "... [txn 4]"},
+    "basis": "one sentence on the evidence basis"
+  }
+}`;
+    const p7 = await withStageTimeout("Profile estimation", callJson(p7System, p7User));
+    profilePrediction = coerceProfilePrediction(p7, missingFields, validIds, nowIso());
+    await db
+      .update(analysisRunsTable)
+      .set({ profilePrediction })
+      .where(eq(analysisRunsTable.id, runId));
+    await setStage("profile", "complete");
+    }
+
+    // ---- P8: disclosure reconciliation (self-report vs statements) ------
+    if (!doneByStage.reconciliation) {
+    await setStage("reconciliation", "running");
+    log.info("P8 disclosure reconciliation starting");
+    // The disclosure may still be mid-extraction when the analysis run was
+    // launched right after upload. Re-fetch at stage time and give the
+    // extractor (it has its own 5-minute watchdog) a bounded window to
+    // finish, instead of silently skipping reconciliation.
+    let p8Extraction = disclosureExtraction;
+    {
+      const deadline = Date.now() + 4 * 60 * 1000;
+      for (;;) {
+        const [fresh] = await db
+          .select()
+          .from(disclosuresTable)
+          .where(eq(disclosuresTable.caseId, run.caseId));
+        if (!fresh || fresh.status === "failed") {
+          p8Extraction = null;
+          break;
+        }
+        if (fresh.status === "ready" && fresh.extraction) {
+          p8Extraction = fresh.extraction as DisclosureExtraction;
+          break;
+        }
+        if (Date.now() >= deadline) {
+          p8Extraction = null;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10_000));
+      }
+    }
+    if (p8Extraction == null) {
+      log.info("no ready disclosure extraction at reconciliation time; skipping stage");
+      await setStage("reconciliation", "complete");
+    } else {
+    if (disclosureExtraction == null) {
+      // Evidence was built before the extraction finished; rebuild it so
+      // the remaining stages (investigation, memo) see the declaration.
+      evidence = buildEvidence({ caseRow, run, txns: txnRows, disclosure: p8Extraction });
+    }
+    const p8System = `You reconcile a subject's official financial disclosure (the Kuwaiti declaration of financial interests under Law No. 2 of 2016) against consolidated multi-bank statement evidence for AML investigation triage at ASIA Consulting (Kuwait). Surface inconsistencies AND corroborations, in both directions, without exaggeration. Declared wealth is never suspicious by itself; what matters is unexplained inconsistency between the declaration and the observed flows. ${SHARED_GUARDRAILS}`;
+    const p8User = `${evidence}
+
+FULL DISCLOSURE EXTRACTION (the subject's self-reported wealth position, AI-read from the handwritten form):
+${JSON.stringify(p8Extraction).slice(0, 9000)}
+
+TASK - Cross-reference the declaration against the statement evidence. Check every direction:
+1. undeclared_account - banks with activity in the statements that are absent from the declared accounts and deposits. Match Arabic and English bank names as the same institution (بيت التمويل الكويتي / بيتك = KFH / Kuwait Finance House, البنك الوطني = NBK, بنك بوبيان = Boubyan, البنك التجاري = CBK, بنك الخليج = Gulf Bank, بنك برقان = Burgan, البنك الأهلي = ABK, بنك وربة = Warba).
+2. coverage_gap - declared accounts or deposits with no statement file in this case (data-collection gap; severity info; txnIds may be empty).
+3. income_mismatch - declared fixed monthly salary versus observed salary-like credits and total recurring inflows.
+4. wealth_inconsistency - flow volumes out of proportion to the declared estate (deposits, securities, movables).
+5. asset_transaction - transactions consistent with acquiring or selling declared or undeclared assets, including movables above the 3,000 KWD disclosure threshold.
+6. debt_service - repayment flows matching declared debts (creditor, magnitude, timing), or loan-like flows with no declared debt behind them.
+7. rental_or_usufruct_income - rental or farm income consistent or inconsistent with declared real estate and usufruct rights.
+8. securities_activity - broker, dividend, or subscription flows versus declared securities.
+9. dependent_activity - declared minor children or dependents appearing as transaction counterparties.
+10. corroboration - the strongest places where the declaration and the statements AGREE (severity info).
+Severity: info = context, corroboration, or coverage gap; notable = worth an investigator question; significant = material inconsistency needing follow-up. Cite txn ids for every statement-based claim. Reference declaration items in disclosureRefs like "bankAccountsAndDeposits[0]".
+
+Reply with ONLY this JSON:
+{
+  "disclosureReconciliation": {
+    "summary": "3-5 sentences on overall declared-vs-observed alignment, citing [txn 123] inline",
+    "findings": [{
+      "findingId": "DR-01",
+      "category": "undeclared_account|declared_account_activity|income_mismatch|wealth_inconsistency|asset_transaction|debt_service|rental_or_usufruct_income|securities_activity|dependent_activity|corroboration|coverage_gap|other",
+      "severity": "info|notable|significant",
+      "title": "...",
+      "detail": "2-4 sentences citing [txn 123] inline",
+      "txnIds": [123],
+      "disclosureRefs": ["bankAccountsAndDeposits[0]"]
+    }]
+  }
+}`;
+    const p8 = await withStageTimeout(
+      "Disclosure reconciliation",
+      callJson(p8System, p8User),
+    );
+    disclosureReconciliation = coerceDisclosureReconciliation(p8, validIds, nowIso());
+    await db
+      .update(analysisRunsTable)
+      .set({ disclosureReconciliation })
+      .where(eq(analysisRunsTable.id, runId));
+    await setStage("reconciliation", "complete");
+    }
+    }
+
     // ---- P6: deep investigation hypotheses ------------------------------
     if (!doneByStage.investigation) {
     await setStage("investigation", "running");
@@ -662,6 +829,7 @@ ${JSON.stringify({ typologyFindings, profileConsistency, informationGaps }, null
 ADVERSARIAL REVIEW:
 ${JSON.stringify({ criticScenarios, methodologicalObjections, residualUnexplained }, null, 1).slice(0, 6000)}
 
+${disclosureReconciliation ? `DISCLOSURE RECONCILIATION (official self-report vs observed flows):\n${JSON.stringify(disclosureReconciliation).slice(0, 4000)}\n` : ""}
 TASK:
 1. Prioritize no more than 6 falsifiable hypotheses. A supported or plausible hypothesis MUST cite real supportingTxnIds. Include contradictoryTxnIds when the provided evidence weakens the hypothesis.
 2. Connect hypotheses to technicalFindingIds only when those IDs appear in TECHNICAL FORENSICS.
@@ -724,6 +892,7 @@ CRITIC SCENARIOS: ${JSON.stringify(criticScenarios).slice(0, 4000)}
 RESIDUAL CONCERNS: ${JSON.stringify(residualUnexplained)}
 INVESTIGATION HYPOTHESES: ${JSON.stringify(aiInvestigation.hypotheses).slice(0, 5000)}
 RECOMMENDED INVESTIGATION ACTIONS: ${JSON.stringify(aiInvestigation.recommendedActions).slice(0, 3500)}
+${disclosureReconciliation ? `DECLARED-WEALTH RECONCILIATION (official self-report vs observed flows): ${JSON.stringify(disclosureReconciliation).slice(0, 3500)}` : ""}
 
 Write the case memo (450-700 words) with these sections:
 SUBJECT AND SCOPE
@@ -731,7 +900,7 @@ DATA COVERAGE AND QUALITY
 KEY FINDINGS (cite transactions inline as [txn 123])
 ALTERNATIVE EXPLANATIONS CONSIDERED
 RESIDUAL CONCERNS
-RECOMMENDED NEXT STEPS (concrete, in priority order)`;
+RECOMMENDED NEXT STEPS (concrete, in priority order)${disclosureReconciliation ? `\nWeave material declared-wealth reconciliation findings (inconsistencies and corroborations) into KEY FINDINGS and RESIDUAL CONCERNS, citing [txn 123].` : ""}`;
     const memo = await withStageTimeout("Case memo", callClaude(p4System, p4User));
     await db
       .update(analysisRunsTable)

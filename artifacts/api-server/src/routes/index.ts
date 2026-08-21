@@ -5,6 +5,7 @@ import filesRouter from "./files";
 import analysisRouter from "./analysis";
 import transactionsRouter from "./transactions";
 import dashboardRouter from "./dashboard";
+import disclosureRouter from "./disclosure";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(filesRouter);
 router.use(analysisRouter);
 router.use(transactionsRouter);
 router.use(dashboardRouter);
+router.use(disclosureRouter);
 
 export default router;

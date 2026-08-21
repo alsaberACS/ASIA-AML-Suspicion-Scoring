@@ -9,9 +9,9 @@ export default function CaseWorkspace() {
   const caseId = Number(params.id);
   
   const { data: caseData, isLoading: caseLoading, error: caseError, refetch: refetchCase } = useGetCase(caseId);
-  const { refetch: refetchLatest } = useGetLatestAnalysis(caseId, {
-    query: { queryKey: getGetLatestAnalysisQueryKey(caseId), enabled: false },
-  }); // Just for manual refetching after intake
+  const { data: latestAnalysis, refetch: refetchLatest } = useGetLatestAnalysis(caseId, {
+    query: { queryKey: getGetLatestAnalysisQueryKey(caseId) },
+  });
 
   if (caseLoading) {
     return (
@@ -42,7 +42,11 @@ export default function CaseWorkspace() {
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-[1600px] mx-auto">
       {/* 1. Profile Header */}
-      <CaseHeader caseData={caseData} />
+      <CaseHeader
+        caseData={caseData}
+        prediction={latestAnalysis?.profilePrediction ?? null}
+        onProfileUpdated={handleRefetchData}
+      />
       
       {/* 2. Intake & Files */}
       <IntakeSection 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Case, useUpdateCase } from '@workspace/api-client-react';
+import { Case, CaseUpdate, ProfilePrediction, useUpdateCase } from '@workspace/api-client-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -7,11 +7,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, User, Briefcase, Building2, MapPin, AlignLeft, Hash, ArrowLeft } from 'lucide-react';
+import { Pencil, User, Briefcase, Building2, MapPin, AlignLeft, Hash, ArrowLeft, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocation } from 'wouter';
 
-export default function CaseHeader({ caseData }: { caseData: Case }) {
+export default function CaseHeader({
+  caseData,
+  prediction,
+  onProfileUpdated,
+}: {
+  caseData: Case;
+  prediction?: ProfilePrediction | null;
+  onProfileUpdated?: () => void;
+}) {
   const [editOpen, setEditOpen] = useState(false);
   const [, navigate] = useLocation();
   const updateCase = useUpdateCase();
@@ -56,12 +64,61 @@ export default function CaseHeader({ caseData }: { caseData: Case }) {
       }
     }, {
       onSuccess: () => {
+        onProfileUpdated?.();
         toast.success('Subject profile updated');
         setEditOpen(false);
       },
       onError: () => toast.error('Failed to update profile')
     });
   };
+
+  // AI-estimated profile values from the latest analysis run. Shown only
+  // while the corresponding declared field is empty; adopting them is an
+  // explicit analyst action (they never overwrite declared data silently).
+  const predOccupation =
+    !caseData.declaredOccupation && prediction?.declaredOccupation ? prediction.declaredOccupation : null;
+  const predIncome =
+    !caseData.declaredMonthlyIncomeKwd && prediction?.declaredMonthlyIncomeKwd
+      ? prediction.declaredMonthlyIncomeKwd
+      : null;
+  const predBusiness =
+    !caseData.declaredBusinessActivity && prediction?.declaredBusinessActivity
+      ? prediction.declaredBusinessActivity
+      : null;
+  const predCountries =
+    (!caseData.expectedCountries || caseData.expectedCountries.length === 0) && prediction?.expectedCountries
+      ? prediction.expectedCountries
+      : null;
+  const hasEstimates = Boolean(predOccupation || predIncome || predBusiness || predCountries);
+
+  const applyEstimates = () => {
+    // Partial PATCH: send ONLY the fields being adopted. The server applies
+    // just the provided keys, so concurrent edits to other profile fields
+    // (name, notes, manually entered values) are never clobbered by a stale
+    // snapshot from this component.
+    const data: CaseUpdate = {};
+    if (predOccupation) data.declaredOccupation = predOccupation.value;
+    if (predIncome) data.declaredMonthlyIncomeKwd = predIncome.value;
+    if (predBusiness) data.declaredBusinessActivity = predBusiness.value;
+    if (predCountries) data.expectedCountries = predCountries.value;
+    if (Object.keys(data).length === 0) return;
+    updateCase.mutate(
+      { caseId: caseData.id, data },
+      {
+        onSuccess: () => {
+          onProfileUpdated?.();
+          toast.success('AI estimates adopted into the profile - the next analysis run will score against them');
+        },
+        onError: () => toast.error('Failed to adopt AI estimates'),
+      },
+    );
+  };
+
+  const AiEstBadge = () => (
+    <span className="shrink-0 not-italic font-mono text-[9px] uppercase tracking-wider bg-primary/10 border border-primary/30 text-primary px-1 py-px rounded-sm">
+      AI est
+    </span>
+  );
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -116,40 +173,109 @@ export default function CaseHeader({ caseData }: { caseData: Case }) {
                 <div className="flex items-center text-xs font-mono text-muted-foreground uppercase tracking-wider gap-1.5">
                   <Briefcase className="h-3 w-3" /> Occupation
                 </div>
-                <div className="text-sm font-medium">{caseData.declaredOccupation || '—'}</div>
+                {caseData.declaredOccupation ? (
+                  <div className="text-sm font-medium">{caseData.declaredOccupation}</div>
+                ) : predOccupation ? (
+                  <div
+                    className="text-sm font-medium text-primary/90 italic flex items-center gap-1.5"
+                    title={`AI estimate (${predOccupation.confidence} confidence): ${predOccupation.rationale}`}
+                    data-testid="text-predicted-occupation"
+                  >
+                    <span className="truncate">{predOccupation.value}</span>
+                    <AiEstBadge />
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium">—</div>
+                )}
               </div>
               
               <div className="space-y-1">
                 <div className="flex items-center text-xs font-mono text-muted-foreground uppercase tracking-wider gap-1.5">
                   <Building2 className="h-3 w-3" /> Business Activity
                 </div>
-                <div className="text-sm font-medium">{caseData.declaredBusinessActivity || '—'}</div>
+                {caseData.declaredBusinessActivity ? (
+                  <div className="text-sm font-medium">{caseData.declaredBusinessActivity}</div>
+                ) : predBusiness ? (
+                  <div
+                    className="text-sm font-medium text-primary/90 italic flex items-center gap-1.5"
+                    title={`AI estimate (${predBusiness.confidence} confidence): ${predBusiness.rationale}`}
+                    data-testid="text-predicted-business"
+                  >
+                    <span className="truncate">{predBusiness.value}</span>
+                    <AiEstBadge />
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium">—</div>
+                )}
               </div>
 
               <div className="space-y-1">
                 <div className="flex items-center text-xs font-mono text-muted-foreground uppercase tracking-wider gap-1.5">
                   <span className="font-serif italic text-xs leading-none">KWD</span> Declared Income
                 </div>
-                <div className="text-sm font-medium font-mono">
-                  {caseData.declaredMonthlyIncomeKwd ? `${caseData.declaredMonthlyIncomeKwd.toLocaleString()} /mo` : '—'}
-                </div>
+                {caseData.declaredMonthlyIncomeKwd ? (
+                  <div className="text-sm font-medium font-mono">
+                    {caseData.declaredMonthlyIncomeKwd.toLocaleString()} /mo
+                  </div>
+                ) : predIncome ? (
+                  <div
+                    className="text-sm font-medium font-mono text-primary/90 italic flex items-center gap-1.5"
+                    title={`AI estimate (${predIncome.confidence} confidence): ${predIncome.rationale}`}
+                    data-testid="text-predicted-income"
+                  >
+                    <span className="truncate">{predIncome.value.toLocaleString()} /mo</span>
+                    <AiEstBadge />
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium font-mono">—</div>
+                )}
               </div>
 
               <div className="space-y-1">
                 <div className="flex items-center text-xs font-mono text-muted-foreground uppercase tracking-wider gap-1.5">
                   <MapPin className="h-3 w-3" /> Expected Countries
                 </div>
-                <div className="text-sm font-medium flex flex-wrap gap-1">
+                <div className="text-sm font-medium flex flex-wrap items-center gap-1">
                   {caseData.expectedCountries && caseData.expectedCountries.length > 0 ? (
                     caseData.expectedCountries.map(c => (
                       <span key={c} className="bg-secondary/50 text-secondary-foreground text-xs px-1.5 py-0.5 rounded-sm border border-secondary">
                         {c}
                       </span>
                     ))
+                  ) : predCountries ? (
+                    <span
+                      className="flex flex-wrap items-center gap-1"
+                      title={`AI estimate (${predCountries.confidence} confidence): ${predCountries.rationale}`}
+                      data-testid="text-predicted-countries"
+                    >
+                      {predCountries.value.map(c => (
+                        <span key={c} className="bg-primary/10 text-primary/90 italic text-xs px-1.5 py-0.5 rounded-sm border border-primary/30">
+                          {c}
+                        </span>
+                      ))}
+                      <AiEstBadge />
+                    </span>
                   ) : '—'}
                 </div>
               </div>
             </div>
+
+            {hasEstimates && (
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={applyEstimates}
+                  disabled={updateCase.isPending}
+                  data-testid="button-apply-prediction"
+                  className="rounded-sm font-mono text-xs border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <Sparkles className="h-3 w-3 mr-2" />
+                  {updateCase.isPending ? 'Adopting...' : 'Adopt AI estimates into profile'}
+                </Button>
+                <span className="text-xs text-muted-foreground max-w-xl">{prediction?.basis}</span>
+              </div>
+            )}
 
             {caseData.notes && (
               <div className="pt-2 border-t border-border/50">

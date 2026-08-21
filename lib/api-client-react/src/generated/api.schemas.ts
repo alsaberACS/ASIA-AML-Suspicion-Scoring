@@ -683,6 +683,103 @@ export interface SanctionsScreening {
   totals: SanctionsScreeningTotals;
 }
 
+export type ProfilePredictionFieldConfidence = typeof ProfilePredictionFieldConfidence[keyof typeof ProfilePredictionFieldConfidence];
+
+
+export const ProfilePredictionFieldConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface ProfilePredictionField {
+  value: string;
+  confidence: ProfilePredictionFieldConfidence;
+  rationale: string;
+}
+
+export type ProfilePredictionIncomeConfidence = typeof ProfilePredictionIncomeConfidence[keyof typeof ProfilePredictionIncomeConfidence];
+
+
+export const ProfilePredictionIncomeConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface ProfilePredictionIncome {
+  value: number;
+  confidence: ProfilePredictionIncomeConfidence;
+  rationale: string;
+}
+
+export type ProfilePredictionCountriesConfidence = typeof ProfilePredictionCountriesConfidence[keyof typeof ProfilePredictionCountriesConfidence];
+
+
+export const ProfilePredictionCountriesConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface ProfilePredictionCountries {
+  value: string[];
+  confidence: ProfilePredictionCountriesConfidence;
+  rationale: string;
+}
+
+export interface ProfilePrediction {
+  generatedAt: string;
+  basis: string;
+  declaredOccupation?: ProfilePredictionField | null;
+  declaredMonthlyIncomeKwd?: ProfilePredictionIncome | null;
+  declaredBusinessActivity?: ProfilePredictionField | null;
+  expectedCountries?: ProfilePredictionCountries | null;
+}
+
+export type DisclosureReconciliationFindingCategory = typeof DisclosureReconciliationFindingCategory[keyof typeof DisclosureReconciliationFindingCategory];
+
+
+export const DisclosureReconciliationFindingCategory = {
+  undeclared_account: 'undeclared_account',
+  declared_account_activity: 'declared_account_activity',
+  income_mismatch: 'income_mismatch',
+  wealth_inconsistency: 'wealth_inconsistency',
+  asset_transaction: 'asset_transaction',
+  debt_service: 'debt_service',
+  rental_or_usufruct_income: 'rental_or_usufruct_income',
+  securities_activity: 'securities_activity',
+  dependent_activity: 'dependent_activity',
+  corroboration: 'corroboration',
+  coverage_gap: 'coverage_gap',
+  other: 'other',
+} as const;
+
+export type DisclosureReconciliationFindingSeverity = typeof DisclosureReconciliationFindingSeverity[keyof typeof DisclosureReconciliationFindingSeverity];
+
+
+export const DisclosureReconciliationFindingSeverity = {
+  info: 'info',
+  notable: 'notable',
+  significant: 'significant',
+} as const;
+
+export interface DisclosureReconciliationFinding {
+  findingId: string;
+  category: DisclosureReconciliationFindingCategory;
+  severity: DisclosureReconciliationFindingSeverity;
+  title: string;
+  detail: string;
+  txnIds: number[];
+  disclosureRefs: string[];
+}
+
+export interface DisclosureReconciliation {
+  generatedAt: string;
+  summary: string;
+  findings: DisclosureReconciliationFinding[];
+}
+
 export type DispositionDecision = typeof DispositionDecision[keyof typeof DispositionDecision];
 
 
@@ -761,7 +858,207 @@ export interface AnalysisRun {
   caseMemo?: string | null;
   aiProgress?: AiProgress | null;
   sanctionsScreening?: SanctionsScreening | null;
+  profilePrediction?: ProfilePrediction | null;
+  disclosureReconciliation?: DisclosureReconciliation | null;
   disposition?: Disposition | null;
+}
+
+export interface DisclosureUpload {
+  filename: string;
+  contentBase64: string;
+}
+
+export interface DisclosureDeclarant {
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  residenceCountry?: string | null;
+  /** @nullable */
+  gender?: string | null;
+  /** @nullable */
+  civilId?: string | null;
+  /** @nullable */
+  passportNo?: string | null;
+  /** @nullable */
+  jobTitle?: string | null;
+  /** @nullable */
+  employer?: string | null;
+  /** @nullable */
+  jobStartDate?: string | null;
+  /** @nullable */
+  jobEndDate?: string | null;
+  /** @nullable */
+  workPhone?: string | null;
+  /** @nullable */
+  homeAddress?: string | null;
+  /** @nullable */
+  mobile?: string | null;
+  /** @nullable */
+  homePhone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  monthlySalaryKwd?: number | null;
+}
+
+export interface DisclosureChild {
+  name: string;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  relation?: string | null;
+  /** @nullable */
+  idType?: string | null;
+  /** @nullable */
+  idNumber?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureRealEstate {
+  /** @nullable */
+  ownerName?: string | null;
+  location: string;
+  /** @nullable */
+  areaSqm?: number | null;
+  /** @nullable */
+  ownershipPct?: number | null;
+  /** @nullable */
+  propertyType?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureUsufruct {
+  /** @nullable */
+  beneficiaryName?: string | null;
+  location: string;
+  /** @nullable */
+  areaSqm?: number | null;
+  /** @nullable */
+  usageType?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureSecurity {
+  /** @nullable */
+  ownerName?: string | null;
+  /** @nullable */
+  instrumentType?: string | null;
+  company: string;
+  /** @nullable */
+  companyCountry?: string | null;
+  /** @nullable */
+  quantityOrPct?: string | null;
+  /** @nullable */
+  listed?: boolean | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureAccount {
+  /** @nullable */
+  ownerName?: string | null;
+  institution: string;
+  /** @nullable */
+  institutionCountry?: string | null;
+  /** @nullable */
+  kind?: string | null;
+  /** @nullable */
+  valueKwd?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureDebt {
+  /** @nullable */
+  debtorName?: string | null;
+  creditor: string;
+  /** @nullable */
+  creditorCountry?: string | null;
+  /** @nullable */
+  amountKwd?: number | null;
+  /** @nullable */
+  finalRepaymentDate?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export interface DisclosureMovable {
+  /** @nullable */
+  ownerName?: string | null;
+  description: string;
+  /** @nullable */
+  count?: number | null;
+  /** @nullable */
+  totalValueKwd?: number | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain?: boolean;
+}
+
+export type DisclosureExtractionDeclarationType = typeof DisclosureExtractionDeclarationType[keyof typeof DisclosureExtractionDeclarationType];
+
+
+export const DisclosureExtractionDeclarationType = {
+  first: 'first',
+  update: 'update',
+  final: 'final',
+  unknown: 'unknown',
+} as const;
+
+export interface DisclosureExtraction {
+  declarationType: DisclosureExtractionDeclarationType;
+  /** @nullable */
+  declarationDate?: string | null;
+  /** @nullable */
+  pageCount?: number | null;
+  /** @nullable */
+  summaryEn?: string | null;
+  /** @nullable */
+  generalNotes?: string | null;
+  declarant?: DisclosureDeclarant | null;
+  minorChildren: DisclosureChild[];
+  realEstate: DisclosureRealEstate[];
+  usufructRights: DisclosureUsufruct[];
+  securities: DisclosureSecurity[];
+  bankAccountsAndDeposits: DisclosureAccount[];
+  debtsOwed: DisclosureDebt[];
+  valuableMovables: DisclosureMovable[];
+  sectionsMarkedNone: string[];
+  extractionWarnings: string[];
+}
+
+export type DisclosureStatus = typeof DisclosureStatus[keyof typeof DisclosureStatus];
+
+
+export const DisclosureStatus = {
+  processing: 'processing',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+export interface Disclosure {
+  id: number;
+  caseId: number;
+  filename: string;
+  fileSizeBytes: number;
+  status: DisclosureStatus;
+  /** @nullable */
+  error?: string | null;
+  extraction?: DisclosureExtraction | null;
+  uploadedAt: string;
+  /** @nullable */
+  extractedAt?: string | null;
 }
 
 export type DispositionInputDecision = typeof DispositionInputDecision[keyof typeof DispositionInputDecision];

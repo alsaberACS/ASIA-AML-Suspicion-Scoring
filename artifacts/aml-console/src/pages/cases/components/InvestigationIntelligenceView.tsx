@@ -16,7 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   BrainCircuit, Cpu, AlertTriangle, AlertCircle, Info, 
   ArrowRight, Microscope, Crosshair, Target, CheckCircle2,
-  Terminal, Shield, Zap, Search, Fingerprint, Loader2, RotateCcw, Circle
+  Terminal, Shield, Zap, Search, Fingerprint, Loader2, RotateCcw, Circle, Scale
 } from 'lucide-react';
 import { 
   Accordion,
@@ -48,6 +48,7 @@ export function InvestigationIntelligenceView({
   const technical = run.technicalAnalysis;
   const ai = run.aiInvestigation;
   const aiProgress = run.aiProgress;
+  const recon = run.disclosureReconciliation;
 
   const isAiLoading = !ai && (run.aiStatus === 'pending' || run.aiStatus === 'running');
   const isAiFailed = !ai && (run.aiStatus === 'failed' || run.aiStatus === 'skipped');
@@ -464,6 +465,66 @@ export function InvestigationIntelligenceView({
             )}
           </CardContent>
         </Card>
+
+        {recon && (
+          <Card className="bg-card border-border rounded-sm cyber-panel" data-testid="card-disclosure-reconciliation">
+            <CardHeader className="pb-3 border-b border-border/50 bg-background/30">
+              <CardTitle className="text-base font-mono uppercase tracking-wider flex items-center gap-2">
+                <Scale className="h-4 w-4 text-primary" />
+                Declared Wealth Reconciliation
+              </CardTitle>
+              <CardDescription className="font-mono text-xs mt-1">
+                Official self report cross-referenced against observed statement flows
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <div className="bg-background/40 border border-border/60 p-4 rounded-sm text-sm leading-relaxed text-foreground/90 font-mono shadow-inner" data-testid="text-reconciliation-summary">
+                {recon.summary}
+              </div>
+              {recon.findings.length > 0 && (
+                <div className="space-y-3">
+                  {recon.findings.map((f) => (
+                    <div key={f.findingId} className="bg-background/40 border border-border/60 hover:border-primary/30 transition-colors p-3 rounded-sm" data-testid={'reconciliation-finding-' + f.findingId}>
+                      <div className="flex justify-between items-start mb-1.5 gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={'font-mono text-[9px] uppercase px-1.5 py-0 ' + reconSeverityStyle(f.severity)}>
+                            {f.severity}
+                          </Badge>
+                          <span className="font-mono text-[9px] text-muted-foreground uppercase">{f.findingId}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase truncate max-w-[180px]" title={f.category.replace(/_/g, ' ')}>
+                          {f.category.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="font-medium text-sm text-foreground/90 mb-1">{f.title}</div>
+                      <div className="text-xs text-muted-foreground leading-relaxed">{f.detail}</div>
+                      {f.disclosureRefs.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {f.disclosureRefs.map((ref) => (
+                            <Badge key={ref} variant="outline" className="font-mono text-[9px] border-border/60 text-muted-foreground">
+                              {ref}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {f.txnIds.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 h-7 w-full text-xs font-mono rounded-sm border-border hover:border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
+                          onClick={() => onNavigateTxns(f.txnIds)}
+                          data-testid={'btn-reconciliation-txns-' + f.findingId}
+                        >
+                          View {f.txnIds.length} Txns <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
@@ -545,6 +606,14 @@ function FindingCard({ finding, onNavigateTxns }: { finding: TechnicalFinding, o
       )}
     </div>
   );
+}
+
+function reconSeverityStyle(sev: string) {
+  switch (sev) {
+    case 'significant': return 'border-destructive/50 text-destructive bg-destructive/10';
+    case 'notable': return 'border-amber-500/50 text-amber-500 bg-amber-500/10';
+    default: return 'border-primary/50 text-primary bg-primary/10';
+  }
 }
 
 function StatusBadge({ status }: { status: string }) {

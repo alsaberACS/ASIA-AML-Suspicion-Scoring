@@ -109,7 +109,7 @@ function guardedStrArr(
     .slice(0, 12);
 }
 
-function guardedText(
+export function guardedText(
   value: unknown,
   validIds: Set<number>,
   validFindingIds: Set<string>,
