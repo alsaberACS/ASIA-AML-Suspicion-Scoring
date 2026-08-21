@@ -1177,6 +1177,154 @@ export const useCreateDisposition = <TError = ErrorType<unknown>,
       return useMutation(getCreateDispositionMutationOptions(options));
     }
 
+export const getRetryAiAnalysisUrl = (runId: number,) => {
+
+
+
+
+  return `/api/analysis-runs/${runId}/retry-ai`
+}
+
+/**
+ * @summary Relaunch the AI analyst layers for a run whose AI stage failed, stalled, or was skipped. Resumes from the last completed stage. Never alters the deterministic score.
+ */
+export const retryAiAnalysis = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<AnalysisRun> => {
+
+  return customFetch<AnalysisRun>(getRetryAiAnalysisUrl(runId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryAiAnalysisMutationOptions = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAiAnalysis>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryAiAnalysis>>, TError,{runId: number}, TContext> => {
+
+const mutationKey = ['retryAiAnalysis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryAiAnalysis>>, {runId: number}> = (props) => {
+          const {runId} = props ?? {};
+
+          return  retryAiAnalysis(runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryAiAnalysisMutationResult = NonNullable<Awaited<ReturnType<typeof retryAiAnalysis>>>
+
+    export type RetryAiAnalysisMutationError = ErrorType<ApiMessage>
+
+    /**
+ * @summary Relaunch the AI analyst layers for a run whose AI stage failed, stalled, or was skipped. Resumes from the last completed stage. Never alters the deterministic score.
+ */
+export const useRetryAiAnalysis = <TError = ErrorType<ApiMessage>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAiAnalysis>>, TError,{runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryAiAnalysis>>,
+        TError,
+        {runId: number},
+        TContext
+      > => {
+      return useMutation(getRetryAiAnalysisMutationOptions(options));
+    }
+
+export const getDownloadAnalysisReportUrl = (runId: number,) => {
+
+
+
+
+  return `/api/analysis-runs/${runId}/report.pdf`
+}
+
+/**
+ * @summary Download the full analysis report as a branded PDF document. Includes the deterministic score and findings, AI layers when completed, and the analyst disposition when recorded.
+ */
+export const downloadAnalysisReport = async (runId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadAnalysisReportUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadAnalysisReportQueryKey = (runId: number,) => {
+    return [
+    `/api/analysis-runs/${runId}/report.pdf`
+    ] as const;
+    }
+
+
+export const getDownloadAnalysisReportQueryOptions = <TData = Awaited<ReturnType<typeof downloadAnalysisReport>>, TError = ErrorType<ApiMessage>>(runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAnalysisReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadAnalysisReportQueryKey(runId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadAnalysisReport>>> = ({ signal }) => downloadAnalysisReport(runId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: runId !== null && runId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadAnalysisReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadAnalysisReportQueryResult = NonNullable<Awaited<ReturnType<typeof downloadAnalysisReport>>>
+export type DownloadAnalysisReportQueryError = ErrorType<ApiMessage>
+
+
+/**
+ * @summary Download the full analysis report as a branded PDF document. Includes the deterministic score and findings, AI layers when completed, and the analyst disposition when recorded.
+ */
+
+export function useDownloadAnalysisReport<TData = Awaited<ReturnType<typeof downloadAnalysisReport>>, TError = ErrorType<ApiMessage>>(
+ runId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAnalysisReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadAnalysisReportQueryOptions(runId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListCaseTransactionsUrl = (params: ListCaseTransactionsParams,) => {
   const normalizedParams = new URLSearchParams();
 

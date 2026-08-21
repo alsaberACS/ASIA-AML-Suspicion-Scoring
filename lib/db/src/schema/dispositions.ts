@@ -2,6 +2,7 @@ import {
   pgTable,
   serial,
   integer,
+  jsonb,
   text,
   timestamp,
   uniqueIndex,
@@ -18,6 +19,7 @@ export const dispositionsTable = pgTable(
     decision: text("decision").notNull(),
     analystName: text("analyst_name"),
     notes: text("notes"),
+    hypothesisReviews: jsonb("hypothesis_reviews"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

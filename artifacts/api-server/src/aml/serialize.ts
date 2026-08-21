@@ -49,6 +49,9 @@ export function dispositionToApi(row: DispositionRow) {
     decision: row.decision as "escalate" | "watchlist" | "close",
     analystName: row.analystName,
     notes: row.notes,
+    hypothesisReviews: (row.hypothesisReviews ?? null) as
+      | { hypothesisId: string; verdict: "accepted" | "dismissed" | "undetermined"; note?: string | null }[]
+      | null,
     createdAt: iso(row.createdAt)!,
   };
 }
@@ -199,6 +202,8 @@ export function runToApi(run: AnalysisRunRow, disposition: DispositionRow | null
     residualUnexplained: run.residualUnexplained ?? undefined,
     aiInvestigation: (run.aiInvestigation ?? null) as never,
     caseMemo: run.caseMemo,
+    aiProgress: (run.aiProgress ?? null) as never,
+    sanctionsScreening: (run.sanctionsScreening ?? null) as never,
     disposition: disposition ? dispositionToApi(disposition) : null,
   };
 }

@@ -1,6 +1,6 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, analysisRunsTable, casesTable, transactionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import type { ForcedMapping } from "./parse";
 import type {
@@ -369,6 +369,84 @@ function coerceObjections(raw: unknown): unknown[] {
 
 // ---------------------------------------------------------------------------
 
+export const AI_STAGES = [
+  { stageId: "typology", label: "Typology analysis" },
+  { stageId: "critic", label: "Adversarial critic" },
+  { stageId: "investigation", label: "Investigation hypotheses" },
+  { stageId: "memo", label: "Case memo" },
+] as const;
+export type AiStageId = (typeof AI_STAGES)[number]["stageId"];
+
+interface AiStageProgress {
+  stageId: AiStageId;
+  label: string;
+  status: "pending" | "running" | "complete" | "failed";
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AiProgress {
+  stages: AiStageProgress[];
+  attempts: number;
+  heartbeatAt: string;
+}
+
+const STAGE_TIMEOUT_MS = 6 * 60 * 1000;
+const HEARTBEAT_MS = 25_000;
+const activeAiRuns = new Set<number>();
+
+export function aiRunActive(runId: number): boolean {
+  return activeAiRuns.has(runId);
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+async function withStageTimeout<T>(label: string, work: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label} stage exceeded the ${Math.round(STAGE_TIMEOUT_MS / 60000)}-minute watchdog limit`,
+          ),
+        ),
+      STAGE_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * On startup, resume AI runs that a restart interrupted (aiStatus still
+ * pending/running with no live worker). Persisted stage outputs are kept;
+ * only missing stages are recomputed.
+ */
+export async function reconcileInterruptedAiRuns(): Promise<void> {
+  const stuck = await db
+    .select({ id: analysisRunsTable.id })
+    .from(analysisRunsTable)
+    .where(inArray(analysisRunsTable.aiStatus, ["pending", "running"]));
+  if (stuck.length === 0) return;
+  logger.info(
+    { runIds: stuck.map((r) => r.id) },
+    "reconciling AI runs interrupted by a restart",
+  );
+  void (async () => {
+    for (const row of stuck) {
+      await runAiLayers(row.id).catch((err) =>
+        logger.error({ err, runId: row.id }, "reconciled AI run failed"),
+      );
+    }
+  })();
+}
+
 const SHARED_GUARDRAILS = `Hard rules you must never break:
 1. NEVER state, estimate, or imply a suspicion probability, score, percentage, or risk rating. The deterministic engine owns the score. If asked, you would refuse.
 2. Cite evidence by transaction id using the integer ids provided (e.g. supportingTxnIds: [123]). Never invent ids.
@@ -377,6 +455,29 @@ const SHARED_GUARDRAILS = `Hard rules you must never break:
 
 export async function runAiLayers(runId: number): Promise<void> {
   const log = logger.child({ runId, layer: "ai" });
+  if (activeAiRuns.has(runId)) {
+    log.warn("AI layers already in progress for this run; ignoring duplicate launch");
+    return;
+  }
+  activeAiRuns.add(runId);
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let progress: AiProgress | undefined;
+  const writeProgress = async () => {
+    if (!progress) return;
+    progress.heartbeatAt = nowIso();
+    await db
+      .update(analysisRunsTable)
+      .set({ aiProgress: progress as unknown })
+      .where(eq(analysisRunsTable.id, runId));
+  };
+  const setStage = async (stageId: AiStageId, status: AiStageProgress["status"]) => {
+    const st = progress?.stages.find((s) => s.stageId === stageId);
+    if (!st) return;
+    st.status = status;
+    if (status === "running") st.startedAt = nowIso();
+    if (status === "complete" || status === "failed") st.finishedAt = nowIso();
+    await writeProgress();
+  };
   try {
     const [run] = await db
       .select()
@@ -408,15 +509,62 @@ export async function runAiLayers(runId: number): Promise<void> {
       .from(transactionsTable)
       .where(eq(transactionsTable.caseId, run.caseId));
 
+    // Resume support: stage outputs persisted on the run survive restarts and
+    // are never recomputed. Only missing stages run.
+    let typologyFindings = (run.typologyFindings ?? null) as
+      | ReturnType<typeof coerceFindings>
+      | null;
+    let profileConsistency = (run.profileConsistency ?? null) as
+      | ReturnType<typeof coerceProfileConsistency>
+      | null;
+    let informationGaps = (run.informationGaps ?? null) as string[] | null;
+    let criticScenarios = (run.criticScenarios ?? null) as
+      | ReturnType<typeof coerceScenarios>
+      | null;
+    let methodologicalObjections = (run.methodologicalObjections ?? null) as
+      | ReturnType<typeof coerceObjections>
+      | null;
+    let residualUnexplained = (run.residualUnexplained ?? null) as string[] | null;
+    let aiInvestigation = (run.aiInvestigation ?? null) as
+      | ReturnType<typeof coerceAiInvestigation>
+      | null;
+    const doneByStage: Record<AiStageId, boolean> = {
+      typology: typologyFindings != null,
+      critic: criticScenarios != null,
+      investigation: aiInvestigation != null,
+      memo: run.caseMemo != null,
+    };
+    if (doneByStage.typology || doneByStage.critic || doneByStage.investigation || doneByStage.memo) {
+      log.info({ doneByStage }, "resuming AI layers from last completed stage");
+    }
+    const prevAttempts = ((run.aiProgress ?? null) as AiProgress | null)?.attempts ?? 0;
+    progress = {
+      attempts: prevAttempts + 1,
+      heartbeatAt: nowIso(),
+      stages: AI_STAGES.map((s) => ({
+        stageId: s.stageId,
+        label: s.label,
+        status: doneByStage[s.stageId] ? "complete" : "pending",
+        startedAt: null,
+        finishedAt: null,
+      })),
+    };
+
     await db
       .update(analysisRunsTable)
-      .set({ aiStatus: "running" })
+      .set({ aiStatus: "running", aiError: null })
       .where(eq(analysisRunsTable.id, runId));
+    await writeProgress();
+    heartbeat = setInterval(() => {
+      void writeProgress().catch(() => undefined);
+    }, HEARTBEAT_MS);
 
     const evidence = buildEvidence({ caseRow, run, txns: txnRows });
     const validIds = new Set(txnRows.map((t) => t.id));
 
     // ---- P3: typology analysis -----------------------------------------
+    if (!doneByStage.typology) {
+    await setStage("typology", "running");
     log.info("P3 typology analysis starting");
     const p3System = `You are a senior AML typology analyst at ASIA Consulting (Kuwait), reviewing consolidated multi-bank statement evidence. ${SHARED_GUARDRAILS}`;
     const p3User = `${evidence}
@@ -448,16 +596,23 @@ Reply with ONLY this JSON:
   "profileConsistency": {"verdict": "consistent|partially_inconsistent|inconsistent", "explanation": "..."},
   "informationGaps": ["..."]
 }`;
-    const p3 = await callJson(p3System, p3User);
-    const typologyFindings = coerceFindings(p3, validIds);
-    const profileConsistency = coerceProfileConsistency(p3);
-    const informationGaps = strArr((p3 as Record<string, unknown>)?.informationGaps);
+    const p3 = await withStageTimeout("Typology analysis", callJson(p3System, p3User));
+    typologyFindings = coerceFindings(p3, validIds);
+    profileConsistency = coerceProfileConsistency(p3);
+    informationGaps = strArr((p3 as Record<string, unknown>)?.informationGaps);
     await db
       .update(analysisRunsTable)
       .set({ typologyFindings, profileConsistency, informationGaps })
       .where(eq(analysisRunsTable.id, runId));
+    await setStage("typology", "complete");
+    }
+    if (!typologyFindings || !profileConsistency || !informationGaps) {
+      throw new Error("typology stage outputs missing after execution");
+    }
 
     // ---- P5: adversarial critic ----------------------------------------
+    if (!doneByStage.critic) {
+    await setStage("critic", "running");
     log.info("P5 adversarial critic starting");
     const p5System = `You are the adversarial reviewer in an AML quality-control process at ASIA Consulting (Kuwait). Your job is to argue the SUBJECT'S side: construct innocent explanations for the flagged patterns and attack weaknesses in the methodology. Be specific and testable, not generic. ${SHARED_GUARDRAILS}`;
     const p5User = `${evidence}
@@ -476,16 +631,23 @@ Reply with ONLY this JSON:
   "methodologicalObjections": [{"targetFinding": "...", "objection": "...", "severity": "high|medium|low"}],
   "residualUnexplained": ["..."]
 }`;
-    const p5 = await callJson(p5System, p5User);
-    const criticScenarios = coerceScenarios(p5);
-    const methodologicalObjections = coerceObjections(p5);
-    const residualUnexplained = strArr((p5 as Record<string, unknown>)?.residualUnexplained);
+    const p5 = await withStageTimeout("Adversarial critic", callJson(p5System, p5User));
+    criticScenarios = coerceScenarios(p5);
+    methodologicalObjections = coerceObjections(p5);
+    residualUnexplained = strArr((p5 as Record<string, unknown>)?.residualUnexplained);
     await db
       .update(analysisRunsTable)
       .set({ criticScenarios, methodologicalObjections, residualUnexplained })
       .where(eq(analysisRunsTable.id, runId));
+    await setStage("critic", "complete");
+    }
+    if (!criticScenarios || !methodologicalObjections || !residualUnexplained) {
+      throw new Error("critic stage outputs missing after execution");
+    }
 
     // ---- P6: deep investigation hypotheses ------------------------------
+    if (!doneByStage.investigation) {
+    await setStage("investigation", "running");
     log.info("P6 investigation intelligence starting");
     const technical = (run.technicalAnalysis ?? {
       findings: [],
@@ -533,14 +695,21 @@ Reply with ONLY this JSON:
     "limitations": ["..."]
   }
 }`;
-    const p6 = await callJson(p6System, p6User);
-    const aiInvestigation = coerceAiInvestigation(p6, validIds, validFindingIds);
+    const p6 = await withStageTimeout("Investigation hypotheses", callJson(p6System, p6User));
+    aiInvestigation = coerceAiInvestigation(p6, validIds, validFindingIds);
     await db
       .update(analysisRunsTable)
       .set({ aiInvestigation })
       .where(eq(analysisRunsTable.id, runId));
+    await setStage("investigation", "complete");
+    }
+    if (!aiInvestigation) {
+      throw new Error("investigation stage output missing after execution");
+    }
 
     // ---- P4: case memo ---------------------------------------------------
+    if (!doneByStage.memo) {
+    await setStage("memo", "running");
     log.info("P4 case memo starting");
     const p4System = `You write disposition-ready AML case memos for ASIA Consulting (Kuwait). Professional, precise, no hedging filler, no emojis, no markdown syntax (plain text with UPPERCASE section headings). ${SHARED_GUARDRAILS}
 Exception to rule 1: the deterministic engine's already-computed score is provided to you as a fixed fact; quote it verbatim where indicated but never recompute, adjust, or second-guess it.`;
@@ -563,14 +732,27 @@ KEY FINDINGS (cite transactions inline as [txn 123])
 ALTERNATIVE EXPLANATIONS CONSIDERED
 RESIDUAL CONCERNS
 RECOMMENDED NEXT STEPS (concrete, in priority order)`;
-    const memo = await callClaude(p4System, p4User);
+    const memo = await withStageTimeout("Case memo", callClaude(p4System, p4User));
     await db
       .update(analysisRunsTable)
       .set({ caseMemo: memo.trim(), aiStatus: "complete", aiError: null })
       .where(eq(analysisRunsTable.id, runId));
+    await setStage("memo", "complete");
+    } else {
+      await db
+        .update(analysisRunsTable)
+        .set({ aiStatus: "complete", aiError: null })
+        .where(eq(analysisRunsTable.id, runId));
+    }
     log.info("AI layers complete");
   } catch (err) {
     log.error({ err }, "AI layers failed");
+    const runningStage = progress?.stages.find((s) => s.status === "running");
+    if (runningStage) {
+      runningStage.status = "failed";
+      runningStage.finishedAt = nowIso();
+      await writeProgress().catch(() => undefined);
+    }
     await db
       .update(analysisRunsTable)
       .set({
@@ -579,5 +761,8 @@ RECOMMENDED NEXT STEPS (concrete, in priority order)`;
       })
       .where(eq(analysisRunsTable.id, runId))
       .catch(() => undefined);
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+    activeAiRuns.delete(runId);
   }
 }

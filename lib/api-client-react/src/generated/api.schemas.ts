@@ -534,6 +534,42 @@ export interface BandThreshold {
   action: string;
 }
 
+export type AiStageProgressStageId = typeof AiStageProgressStageId[keyof typeof AiStageProgressStageId];
+
+
+export const AiStageProgressStageId = {
+  typology: 'typology',
+  critic: 'critic',
+  investigation: 'investigation',
+  memo: 'memo',
+} as const;
+
+export type AiStageProgressStatus = typeof AiStageProgressStatus[keyof typeof AiStageProgressStatus];
+
+
+export const AiStageProgressStatus = {
+  pending: 'pending',
+  running: 'running',
+  complete: 'complete',
+  failed: 'failed',
+} as const;
+
+export interface AiStageProgress {
+  stageId: AiStageProgressStageId;
+  label: string;
+  status: AiStageProgressStatus;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  finishedAt: string | null;
+}
+
+export interface AiProgress {
+  stages: AiStageProgress[];
+  attempts: number;
+  heartbeatAt: string;
+}
+
 export type AnalysisRunStatus = typeof AnalysisRunStatus[keyof typeof AnalysisRunStatus];
 
 
@@ -563,6 +599,90 @@ export const AnalysisRunBand = {
   Critical: 'Critical',
 } as const;
 
+export type SanctionsScreeningStatus = typeof SanctionsScreeningStatus[keyof typeof SanctionsScreeningStatus];
+
+
+export const SanctionsScreeningStatus = {
+  complete: 'complete',
+  unavailable: 'unavailable',
+} as const;
+
+export type SanctionsListMetaId = typeof SanctionsListMetaId[keyof typeof SanctionsListMetaId];
+
+
+export const SanctionsListMetaId = {
+  ofac_sdn: 'ofac_sdn',
+  un_consolidated: 'un_consolidated',
+} as const;
+
+export interface SanctionsListMeta {
+  id: SanctionsListMetaId;
+  label: string;
+  fetchedAt: string;
+  stale: boolean;
+  entryCount: number;
+}
+
+export type SanctionsMatchListId = typeof SanctionsMatchListId[keyof typeof SanctionsMatchListId];
+
+
+export const SanctionsMatchListId = {
+  ofac_sdn: 'ofac_sdn',
+  un_consolidated: 'un_consolidated',
+} as const;
+
+export type SanctionsMatchTier = typeof SanctionsMatchTier[keyof typeof SanctionsMatchTier];
+
+
+export const SanctionsMatchTier = {
+  exact: 'exact',
+  strong: 'strong',
+  possible: 'possible',
+} as const;
+
+export interface SanctionsMatch {
+  listId: SanctionsMatchListId;
+  entryId: string;
+  listedName: string;
+  /** @nullable */
+  matchedAlias?: string | null;
+  tier: SanctionsMatchTier;
+  entryType: string;
+  programs: string[];
+  /** @nullable */
+  referenceNumber?: string | null;
+  /** @nullable */
+  listedOn?: string | null;
+  /** @nullable */
+  remarks?: string | null;
+}
+
+export interface SanctionsScreenedName {
+  name: string;
+  /** @nullable */
+  txnCount?: number | null;
+  matches: SanctionsMatch[];
+}
+
+export type SanctionsScreeningTotals = {
+  exact: number;
+  strong: number;
+  possible: number;
+};
+
+export interface SanctionsScreening {
+  engineVersion: string;
+  status: SanctionsScreeningStatus;
+  screenedAt: string;
+  /** @nullable */
+  reason?: string | null;
+  lists: SanctionsListMeta[];
+  namesScreened: number;
+  subject: SanctionsScreenedName;
+  counterpartyMatches: SanctionsScreenedName[];
+  totals: SanctionsScreeningTotals;
+}
+
 export type DispositionDecision = typeof DispositionDecision[keyof typeof DispositionDecision];
 
 
@@ -572,6 +692,22 @@ export const DispositionDecision = {
   close: 'close',
 } as const;
 
+export type HypothesisReviewVerdict = typeof HypothesisReviewVerdict[keyof typeof HypothesisReviewVerdict];
+
+
+export const HypothesisReviewVerdict = {
+  accepted: 'accepted',
+  dismissed: 'dismissed',
+  undetermined: 'undetermined',
+} as const;
+
+export interface HypothesisReview {
+  hypothesisId: string;
+  verdict: HypothesisReviewVerdict;
+  /** @nullable */
+  note?: string | null;
+}
+
 export interface Disposition {
   id: number;
   runId: number;
@@ -580,6 +716,7 @@ export interface Disposition {
   analystName?: string | null;
   /** @nullable */
   notes?: string | null;
+  hypothesisReviews?: HypothesisReview[] | null;
   createdAt: string;
 }
 
@@ -622,6 +759,8 @@ export interface AnalysisRun {
   aiInvestigation?: AiInvestigation | null;
   /** @nullable */
   caseMemo?: string | null;
+  aiProgress?: AiProgress | null;
+  sanctionsScreening?: SanctionsScreening | null;
   disposition?: Disposition | null;
 }
 
@@ -638,6 +777,7 @@ export interface DispositionInput {
   decision: DispositionInputDecision;
   analystName?: string;
   notes?: string;
+  hypothesisReviews?: HypothesisReview[];
 }
 
 export type ListCaseTransactionsParams = {

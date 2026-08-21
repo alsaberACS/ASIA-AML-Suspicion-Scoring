@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DispositionInputDecision } from './dispositionInputDecision';
+import type { HypothesisReview } from './hypothesisReview';
 
 export interface DispositionInput {
   decision: DispositionInputDecision;
   analystName?: string;
   notes?: string;
+  hypothesisReviews?: HypothesisReview[];
 }

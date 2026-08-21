@@ -12,6 +12,7 @@ import { aiAvailable, runAiLayers } from "./ai";
 import { computeFeatures } from "./features";
 import { findInternalPairs } from "./netting";
 import { evaluateRules } from "./rules";
+import { screenCase } from "./sanctions";
 import { aggregate } from "./scoring";
 import { computeTechnicalAnalysis } from "./technical";
 import { BAND_SCALE, type BankBreakdown, type SubjectProfile, type Txn } from "./types";
@@ -110,6 +111,10 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
     "deterministic scoring complete",
   );
 
+  // 5b. Sanctions screening - evidence only, never feeds the Bayesian score.
+  // Honest failure: returns status "unavailable" when no list source works.
+  const sanctionsScreening = await screenCase(caseRow.subjectName, txns);
+
   // Bank breakdowns.
   const byBank = new Map<string, Txn[]>();
   for (const t of txns) {
@@ -161,6 +166,7 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
       technicalAnalysis: technicalAnalysis as unknown,
       internalTransfers: pairs as unknown[],
       bandScale: BAND_SCALE as unknown as unknown[],
+      sanctionsScreening: sanctionsScreening as unknown,
     })
     .returning();
   if (!run) throw new Error("failed to insert analysis run");

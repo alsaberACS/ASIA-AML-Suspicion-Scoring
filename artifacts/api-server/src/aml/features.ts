@@ -1,5 +1,6 @@
 import type { FeatureValue, InternalPair, SubjectProfile, Txn, Zone } from "./types";
 import { daysBetween } from "./netting";
+import { buildIdentityIndex } from "./identity";
 import { countryRisk, isCryptoNarrative, isSelfNarrative, isVagueNarrative } from "./vocab";
 
 /**
@@ -433,8 +434,13 @@ export function computeFeatures(
   }
 
   // --- Network -----------------------------------------------------------
-  const named = external.filter((t) => t.counterpartyName);
-  const byCp = groupBy(named, (t) => t.counterpartyName!.toUpperCase().trim());
+  // Identity resolution: name variants cluster together and masked
+  // account / rail references count as literal parties, so network features
+  // measure PARTIES rather than spellings.
+  const identity = buildIdentityIndex(external.map((t) => t.counterpartyName));
+  const cpKeyOf = (t: Txn): string | null => identity.keyOf(t.counterpartyName);
+  const named = external.filter((t) => cpKeyOf(t) != null);
+  const byCp = groupBy(named, (t) => cpKeyOf(t)!);
   if (byCp.size >= 3) {
     const values = [...byCp.values()].map((ts) => sum(ts));
     const totalV = values.reduce((a, b) => a + b, 0);
@@ -442,18 +448,18 @@ export function computeFeatures(
     F("counterparty_concentration_hhi", "Counterparty concentration (HHI)", "network", hhi, zoneOf(hhi, 0.4, 0.65), {
       unit: "0-1",
       baseline: 0.15,
-      description: `${byCp.size} named counterparties; high concentration plus high volume indicates a dedicated pipe rather than organic activity.`,
+      description: `${byCp.size} resolved counterparties (name variants and masked references consolidated); high concentration plus high volume indicates a dedicated pipe rather than organic activity.`,
     });
   } else {
     F("counterparty_concentration_hhi", "Counterparty concentration (HHI)", "network", 0, "gated", {
-      gatedReason: `Only ${byCp.size} named counterparties.`,
+      gatedReason: `Only ${byCp.size} resolved counterparties.`,
     });
   }
 
   const fanInCredits = extCredits.filter(
-    (t) => t.counterpartyName && !isSelfNarrative(t.narrative),
+    (t) => cpKeyOf(t) != null && !isSelfNarrative(t.narrative),
   );
-  const fanIn = new Set(fanInCredits.map((t) => t.counterpartyName!.toUpperCase().trim())).size;
+  const fanIn = new Set(fanInCredits.map((t) => cpKeyOf(t)!)).size;
   F("fan_in_count", "Distinct inflow counterparties", "network", fanIn, fanIn >= 40 ? "critical" : fanIn >= 15 ? "elevated" : "normal", {
     unit: "parties",
     baseline: 5,
@@ -461,12 +467,12 @@ export function computeFeatures(
   });
 
   const outByCp = groupBy(
-    extDebits.filter((t) => t.counterpartyName),
-    (t) => t.counterpartyName!.toUpperCase().trim(),
+    extDebits.filter((t) => cpKeyOf(t) != null),
+    (t) => cpKeyOf(t)!,
   );
   let topOutflowCounterparty: { name: string; share: number } | null = null;
   if (outByCp.size > 0) {
-    const outTotal = sum(extDebits.filter((t) => t.counterpartyName));
+    const outTotal = sum(extDebits.filter((t) => cpKeyOf(t) != null));
     let bestName = "";
     let bestV = 0;
     for (const [name, ts] of outByCp) {
@@ -476,7 +482,9 @@ export function computeFeatures(
         bestName = name;
       }
     }
-    if (outTotal > 0) topOutflowCounterparty = { name: bestName, share: bestV / outTotal };
+    if (outTotal > 0) {
+      topOutflowCounterparty = { name: identity.displayOf(bestName), share: bestV / outTotal };
+    }
   }
 
   // --- Geography ---------------------------------------------------------

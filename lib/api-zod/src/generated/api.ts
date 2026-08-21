@@ -475,12 +475,79 @@ export const AnalyzeCaseResponse = zod.object({
   "limitations": zod.array(zod.string())
 }),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
+  "aiProgress": zod.union([zod.object({
+  "stages": zod.array(zod.object({
+  "stageId": zod.enum(['typology', 'critic', 'investigation', 'memo']),
+  "label": zod.string(),
+  "status": zod.enum(['pending', 'running', 'complete', 'failed']),
+  "startedAt": zod.string().nullable(),
+  "finishedAt": zod.string().nullable()
+})),
+  "attempts": zod.int(),
+  "heartbeatAt": zod.string()
+}),zod.null()]).optional(),
+  "sanctionsScreening": zod.union([zod.object({
+  "engineVersion": zod.string(),
+  "status": zod.enum(['complete', 'unavailable']),
+  "screenedAt": zod.string(),
+  "reason": zod.string().nullish(),
+  "lists": zod.array(zod.object({
+  "id": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "label": zod.string(),
+  "fetchedAt": zod.string(),
+  "stale": zod.boolean(),
+  "entryCount": zod.int()
+})),
+  "namesScreened": zod.int(),
+  "subject": zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+}),
+  "counterpartyMatches": zod.array(zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+})),
+  "totals": zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+})
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
   "decision": zod.enum(['escalate', 'watchlist', 'close']),
   "analystName": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "hypothesisReviews": zod.union([zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})),zod.null()]).optional(),
   "createdAt": zod.string()
 }),zod.null()]).optional()
 })
@@ -649,12 +716,79 @@ export const GetLatestAnalysisResponse = zod.object({
   "limitations": zod.array(zod.string())
 }),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
+  "aiProgress": zod.union([zod.object({
+  "stages": zod.array(zod.object({
+  "stageId": zod.enum(['typology', 'critic', 'investigation', 'memo']),
+  "label": zod.string(),
+  "status": zod.enum(['pending', 'running', 'complete', 'failed']),
+  "startedAt": zod.string().nullable(),
+  "finishedAt": zod.string().nullable()
+})),
+  "attempts": zod.int(),
+  "heartbeatAt": zod.string()
+}),zod.null()]).optional(),
+  "sanctionsScreening": zod.union([zod.object({
+  "engineVersion": zod.string(),
+  "status": zod.enum(['complete', 'unavailable']),
+  "screenedAt": zod.string(),
+  "reason": zod.string().nullish(),
+  "lists": zod.array(zod.object({
+  "id": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "label": zod.string(),
+  "fetchedAt": zod.string(),
+  "stale": zod.boolean(),
+  "entryCount": zod.int()
+})),
+  "namesScreened": zod.int(),
+  "subject": zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+}),
+  "counterpartyMatches": zod.array(zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+})),
+  "totals": zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+})
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
   "decision": zod.enum(['escalate', 'watchlist', 'close']),
   "analystName": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "hypothesisReviews": zod.union([zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})),zod.null()]).optional(),
   "createdAt": zod.string()
 }),zod.null()]).optional()
 })
@@ -823,12 +957,79 @@ export const GetAnalysisRunResponse = zod.object({
   "limitations": zod.array(zod.string())
 }),zod.null()]).optional(),
   "caseMemo": zod.string().nullish(),
+  "aiProgress": zod.union([zod.object({
+  "stages": zod.array(zod.object({
+  "stageId": zod.enum(['typology', 'critic', 'investigation', 'memo']),
+  "label": zod.string(),
+  "status": zod.enum(['pending', 'running', 'complete', 'failed']),
+  "startedAt": zod.string().nullable(),
+  "finishedAt": zod.string().nullable()
+})),
+  "attempts": zod.int(),
+  "heartbeatAt": zod.string()
+}),zod.null()]).optional(),
+  "sanctionsScreening": zod.union([zod.object({
+  "engineVersion": zod.string(),
+  "status": zod.enum(['complete', 'unavailable']),
+  "screenedAt": zod.string(),
+  "reason": zod.string().nullish(),
+  "lists": zod.array(zod.object({
+  "id": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "label": zod.string(),
+  "fetchedAt": zod.string(),
+  "stale": zod.boolean(),
+  "entryCount": zod.int()
+})),
+  "namesScreened": zod.int(),
+  "subject": zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+}),
+  "counterpartyMatches": zod.array(zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+})),
+  "totals": zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+})
+}),zod.null()]).optional(),
   "disposition": zod.union([zod.object({
   "id": zod.int(),
   "runId": zod.int(),
   "decision": zod.enum(['escalate', 'watchlist', 'close']),
   "analystName": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "hypothesisReviews": zod.union([zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})),zod.null()]).optional(),
   "createdAt": zod.string()
 }),zod.null()]).optional()
 })
@@ -844,7 +1045,12 @@ export const CreateDispositionParams = zod.object({
 export const CreateDispositionBody = zod.object({
   "decision": zod.enum(['escalate', 'watchlist', 'close']),
   "analystName": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "hypothesisReviews": zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})).optional()
 })
 
 export const CreateDispositionResponse = zod.object({
@@ -853,8 +1059,264 @@ export const CreateDispositionResponse = zod.object({
   "decision": zod.enum(['escalate', 'watchlist', 'close']),
   "analystName": zod.string().nullish(),
   "notes": zod.string().nullish(),
+  "hypothesisReviews": zod.union([zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})),zod.null()]).optional(),
   "createdAt": zod.string()
 })
+
+
+/**
+ * @summary Relaunch the AI analyst layers for a run whose AI stage failed, stalled, or was skipped. Resumes from the last completed stage. Never alters the deterministic score.
+ */
+export const RetryAiAnalysisParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const RetryAiAnalysisResponse = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "createdAt": zod.string(),
+  "status": zod.enum(['complete']),
+  "aiStatus": zod.enum(['pending', 'running', 'complete', 'failed', 'skipped']),
+  "aiError": zod.string().nullish(),
+  "probability": zod.number(),
+  "band": zod.enum(['Low', 'Moderate', 'Elevated', 'High', 'Critical']),
+  "priorProbability": zod.number(),
+  "posteriorLogOdds": zod.number().optional(),
+  "dataQualityScore": zod.number(),
+  "dataQualityIssues": zod.array(zod.string()),
+  "txnCount": zod.int(),
+  "totalCreditsKwd": zod.number(),
+  "totalDebitsKwd": zod.number(),
+  "internalTransferCount": zod.int(),
+  "internalValueKwd": zod.number(),
+  "periodStart": zod.string().nullable(),
+  "periodEnd": zod.string().nullable(),
+  "banks": zod.array(zod.object({
+  "bank": zod.string(),
+  "txnCount": zod.int(),
+  "creditsKwd": zod.number(),
+  "debitsKwd": zod.number(),
+  "periodStart": zod.string().nullish(),
+  "periodEnd": zod.string().nullish(),
+  "accountIds": zod.array(zod.string()).optional()
+})),
+  "features": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "group": zod.enum(['placement', 'layering', 'geography', 'temporal', 'narrative', 'network', 'cross_bank']),
+  "value": zod.number(),
+  "unit": zod.string().nullish(),
+  "baseline": zod.number().nullish(),
+  "baselineLabel": zod.string().nullish(),
+  "zone": zod.enum(['normal', 'elevated', 'critical', 'gated']),
+  "description": zod.string().nullish(),
+  "gatedReason": zod.string().nullish()
+})),
+  "ruleHits": zod.array(zod.object({
+  "ruleId": zod.string(),
+  "typologyId": zod.string(),
+  "typologyName": zod.string(),
+  "title": zod.string(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "weightLogLr": zod.number().describe('log likelihood-ratio contribution when fired'),
+  "fired": zod.boolean(),
+  "description": zod.string(),
+  "citation": zod.string(),
+  "detail": zod.string().nullish(),
+  "txnIds": zod.array(zod.int())
+})),
+  "drivers": zod.array(zod.object({
+  "label": zod.string(),
+  "contribution": zod.number().describe('signed log-odds contribution'),
+  "source": zod.enum(['rule', 'feature', 'data_quality', 'prior']),
+  "ruleId": zod.string().nullish(),
+  "featureKey": zod.string().nullish(),
+  "txnIds": zod.array(zod.int()).optional()
+})),
+  "technicalAnalysis": zod.object({
+  "engineVersion": zod.string(),
+  "testedTransactionCount": zod.int(),
+  "dataQualityScore": zod.number(),
+  "testsExecuted": zod.array(zod.string()),
+  "gatedTests": zod.array(zod.object({
+  "testId": zod.string(),
+  "reason": zod.string()
+})),
+  "findings": zod.array(zod.object({
+  "findingId": zod.string(),
+  "category": zod.enum(['amount_outlier', 'behavior_change', 'counterparty_concentration', 'sequence_pattern', 'network_circulation', 'cross_bank_pattern']),
+  "title": zod.string(),
+  "severity": zod.enum(['low', 'medium', 'high', 'critical']),
+  "summary": zod.string(),
+  "metricValue": zod.number().nullable(),
+  "benchmark": zod.string(),
+  "methodology": zod.string(),
+  "caveat": zod.string().nullable(),
+  "txnIds": zod.array(zod.int())
+}))
+}),
+  "internalTransfers": zod.array(zod.object({
+  "id": zod.int(),
+  "debitTxnId": zod.int(),
+  "creditTxnId": zod.int(),
+  "amountKwd": zod.number(),
+  "dateGapDays": zod.number(),
+  "fromBank": zod.string(),
+  "toBank": zod.string(),
+  "matchBasis": zod.string(),
+  "confidence": zod.number()
+})),
+  "bandScale": zod.array(zod.object({
+  "band": zod.string(),
+  "minP": zod.number(),
+  "maxP": zod.number(),
+  "action": zod.string()
+})),
+  "typologyFindings": zod.array(zod.object({
+  "typologyId": zod.string(),
+  "typologyName": zod.string(),
+  "present": zod.enum(['yes', 'partial', 'no']),
+  "strength": zod.enum(['weak', 'moderate', 'strong']),
+  "reasoning": zod.string(),
+  "supportingTxnIds": zod.array(zod.int()),
+  "supportingFeatures": zod.array(zod.object({
+  "feature": zod.string(),
+  "value": zod.number(),
+  "baseline": zod.number().nullish()
+})),
+  "benignExplanationsPossible": zod.array(zod.string())
+})).optional(),
+  "profileConsistency": zod.union([zod.object({
+  "verdict": zod.enum(['consistent', 'partially_inconsistent', 'inconsistent']),
+  "explanation": zod.string()
+}),zod.null()]).optional(),
+  "informationGaps": zod.array(zod.string()).optional(),
+  "criticScenarios": zod.array(zod.object({
+  "scenario": zod.string(),
+  "explainsFindings": zod.array(zod.string()),
+  "consistencyCheck": zod.string(),
+  "confirmingDocument": zod.string(),
+  "plausibility": zod.enum(['high', 'medium', 'low'])
+})).optional(),
+  "methodologicalObjections": zod.array(zod.object({
+  "targetFinding": zod.string(),
+  "objection": zod.string(),
+  "severity": zod.enum(['high', 'medium', 'low'])
+})).optional(),
+  "residualUnexplained": zod.array(zod.string()).optional(),
+  "aiInvestigation": zod.union([zod.object({
+  "executiveAssessment": zod.string(),
+  "hypotheses": zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "title": zod.string(),
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "status": zod.enum(['supported', 'plausible', 'inconclusive', 'not_supported']),
+  "rationale": zod.string(),
+  "supportingTxnIds": zod.array(zod.int()),
+  "contradictoryTxnIds": zod.array(zod.int()),
+  "technicalFindingIds": zod.array(zod.string()),
+  "benignExplanations": zod.array(zod.string()),
+  "unresolvedQuestions": zod.array(zod.string())
+})),
+  "recommendedActions": zod.array(zod.object({
+  "priority": zod.enum(['high', 'medium', 'low']),
+  "action": zod.string(),
+  "rationale": zod.string(),
+  "evidenceNeeded": zod.string()
+})),
+  "limitations": zod.array(zod.string())
+}),zod.null()]).optional(),
+  "caseMemo": zod.string().nullish(),
+  "aiProgress": zod.union([zod.object({
+  "stages": zod.array(zod.object({
+  "stageId": zod.enum(['typology', 'critic', 'investigation', 'memo']),
+  "label": zod.string(),
+  "status": zod.enum(['pending', 'running', 'complete', 'failed']),
+  "startedAt": zod.string().nullable(),
+  "finishedAt": zod.string().nullable()
+})),
+  "attempts": zod.int(),
+  "heartbeatAt": zod.string()
+}),zod.null()]).optional(),
+  "sanctionsScreening": zod.union([zod.object({
+  "engineVersion": zod.string(),
+  "status": zod.enum(['complete', 'unavailable']),
+  "screenedAt": zod.string(),
+  "reason": zod.string().nullish(),
+  "lists": zod.array(zod.object({
+  "id": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "label": zod.string(),
+  "fetchedAt": zod.string(),
+  "stale": zod.boolean(),
+  "entryCount": zod.int()
+})),
+  "namesScreened": zod.int(),
+  "subject": zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+}),
+  "counterpartyMatches": zod.array(zod.object({
+  "name": zod.string(),
+  "txnCount": zod.int().nullish(),
+  "matches": zod.array(zod.object({
+  "listId": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "entryId": zod.string(),
+  "listedName": zod.string(),
+  "matchedAlias": zod.string().nullish(),
+  "tier": zod.enum(['exact', 'strong', 'possible']),
+  "entryType": zod.string(),
+  "programs": zod.array(zod.string()),
+  "referenceNumber": zod.string().nullish(),
+  "listedOn": zod.string().nullish(),
+  "remarks": zod.string().nullish()
+}))
+})),
+  "totals": zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+})
+}),zod.null()]).optional(),
+  "disposition": zod.union([zod.object({
+  "id": zod.int(),
+  "runId": zod.int(),
+  "decision": zod.enum(['escalate', 'watchlist', 'close']),
+  "analystName": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "hypothesisReviews": zod.union([zod.array(zod.object({
+  "hypothesisId": zod.string(),
+  "verdict": zod.enum(['accepted', 'dismissed', 'undetermined']),
+  "note": zod.string().nullish()
+})),zod.null()]).optional(),
+  "createdAt": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Download the full analysis report as a branded PDF document. Includes the deterministic score and findings, AI layers when completed, and the analyst disposition when recorded.
+ */
+export const DownloadAnalysisReportParams = zod.object({
+  "runId": zod.coerce.number().int()
+})
+
+export const DownloadAnalysisReportResponse = zod.unknown()
 
 
 /**

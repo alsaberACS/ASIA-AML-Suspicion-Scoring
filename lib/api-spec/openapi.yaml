@@ -273,6 +273,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Disposition"
+  /analysis-runs/{runId}/retry-ai:
+    post:
+      operationId: retryAiAnalysis
+      tags: [analysis]
+      summary: Relaunch the AI analyst layers for a run whose AI stage failed, stalled, or was skipped. Resumes from the last completed stage. Never alters the deterministic score.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "202":
+          description: AI layers relaunched; poll the run while aiStatus is pending/running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisRun"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+        "409":
+          description: AI analysis already complete or currently in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /analysis-runs/{runId}/report.pdf:
+    get:
+      operationId: downloadAnalysisReport
+      tags: [analysis]
+      summary: Download the full analysis report as a branded PDF document. Includes the deterministic score and findings, AI layers when completed, and the analyst disposition when recorded.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: PDF report
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
   /transactions:
     get:
       operationId: listCaseTransactions
@@ -795,6 +842,25 @@ components:
         minP: { type: number }
         maxP: { type: number }
         action: { type: string }
+    AiStageProgress:
+      type: object
+      required: [stageId, label, status, startedAt, finishedAt]
+      properties:
+        stageId: { type: string, enum: [typology, critic, investigation, memo] }
+        label: { type: string }
+        status: { type: string, enum: [pending, running, complete, failed] }
+        startedAt: { type: ["string", "null"] }
+        finishedAt: { type: ["string", "null"] }
+    AiProgress:
+      type: object
+      required: [stages, attempts, heartbeatAt]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiStageProgress"
+        attempts: { type: integer }
+        heartbeatAt: { type: string }
     AnalysisRun:
       type: object
       required: [id, caseId, createdAt, status, aiStatus, probability, band, priorProbability, dataQualityScore, dataQualityIssues, txnCount, totalCreditsKwd, totalDebitsKwd, internalTransferCount, internalValueKwd, periodStart, periodEnd, banks, features, ruleHits, drivers, technicalAnalysis, internalTransfers, bandScale]
@@ -873,10 +939,82 @@ components:
             - $ref: "#/components/schemas/AiInvestigation"
             - type: "null"
         caseMemo: { type: ["string", "null"] }
+        aiProgress:
+          oneOf:
+            - $ref: "#/components/schemas/AiProgress"
+            - type: "null"
+        sanctionsScreening:
+          oneOf:
+            - $ref: "#/components/schemas/SanctionsScreening"
+            - type: "null"
         disposition:
           oneOf:
             - $ref: "#/components/schemas/Disposition"
             - type: "null"
+    SanctionsMatch:
+      type: object
+      required: [listId, entryId, listedName, tier, entryType, programs]
+      properties:
+        listId: { type: string, enum: [ofac_sdn, un_consolidated] }
+        entryId: { type: string }
+        listedName: { type: string }
+        matchedAlias: { type: ["string", "null"] }
+        tier: { type: string, enum: [exact, strong, possible] }
+        entryType: { type: string }
+        programs:
+          type: array
+          items: { type: string }
+        referenceNumber: { type: ["string", "null"] }
+        listedOn: { type: ["string", "null"] }
+        remarks: { type: ["string", "null"] }
+    SanctionsScreenedName:
+      type: object
+      required: [name, matches]
+      properties:
+        name: { type: string }
+        txnCount: { type: ["integer", "null"] }
+        matches:
+          type: array
+          items: { $ref: "#/components/schemas/SanctionsMatch" }
+    SanctionsListMeta:
+      type: object
+      required: [id, label, fetchedAt, stale, entryCount]
+      properties:
+        id: { type: string, enum: [ofac_sdn, un_consolidated] }
+        label: { type: string }
+        fetchedAt: { type: string }
+        stale: { type: boolean }
+        entryCount: { type: integer }
+    SanctionsScreening:
+      type: object
+      required: [engineVersion, status, screenedAt, lists, namesScreened, subject, counterpartyMatches, totals]
+      properties:
+        engineVersion: { type: string }
+        status: { type: string, enum: [complete, unavailable] }
+        screenedAt: { type: string }
+        reason: { type: ["string", "null"] }
+        lists:
+          type: array
+          items: { $ref: "#/components/schemas/SanctionsListMeta" }
+        namesScreened: { type: integer }
+        subject: { $ref: "#/components/schemas/SanctionsScreenedName" }
+        counterpartyMatches:
+          type: array
+          items: { $ref: "#/components/schemas/SanctionsScreenedName" }
+        totals:
+          type: object
+          required: [exact, strong, possible]
+          properties:
+            exact: { type: integer }
+            strong: { type: integer }
+            possible: { type: integer }
+    HypothesisReview:
+      type: object
+      required: [hypothesisId, verdict]
+      properties:
+        hypothesisId: { type: string }
+        verdict: { type: string, enum: [accepted, dismissed, undetermined] }
+        note: { type: ["string", "null"] }
     DispositionInput:
       type: object
       required: [decision]
@@ -884,6 +1022,9 @@ components:
         decision: { type: string, enum: [escalate, watchlist, close] }
         analystName: { type: string }
         notes: { type: string }
+        hypothesisReviews:
+          type: array
+          items: { $ref: "#/components/schemas/HypothesisReview" }
     Disposition:
       type: object
       required: [id, runId, decision, createdAt]
@@ -893,4 +1034,9 @@ components:
         decision: { type: string, enum: [escalate, watchlist, close] }
         analystName: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
+        hypothesisReviews:
+          oneOf:
+            - type: array
+              items: { $ref: "#/components/schemas/HypothesisReview" }
+            - type: "null"
         createdAt: { type: string }

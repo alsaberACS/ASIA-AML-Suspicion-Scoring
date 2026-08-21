@@ -25,8 +25,9 @@ import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   AlertTriangle, CheckCircle2, AlertCircle, Info, ShieldAlert, Activity,
-  ArrowRightLeft, Layers, BrainCircuit, Shield, Network, Scale, FileText, FileSearch, ArrowRight, Search, ListFilter
+  ArrowRightLeft, Layers, BrainCircuit, Shield, Network, Scale, FileText, FileSearch, ArrowRight, Search, ListFilter, Download, Maximize2
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -35,6 +36,8 @@ import {
   BarChart, Bar, Legend, ComposedChart, Line
 } from 'recharts';
 import { InvestigationIntelligenceView } from './InvestigationIntelligenceView';
+import { SanctionsView } from './SanctionsView';
+import type { SanctionsScreening } from '@workspace/api-client-react';
 
 export default function EvidencePack({ caseId }: { caseId: number }) {
   const { data: latestAnalysis, isLoading: analysisLoading, error: analysisError, refetch: refetchLatest } = useGetLatestAnalysis(caseId);
@@ -79,6 +82,13 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
     setActiveTab('transactions');
   };
 
+  const screening = (run.sanctionsScreening ?? null) as SanctionsScreening | null;
+  const sanctionsAlert =
+    !!screening &&
+    (screening.status === 'unavailable' ||
+      (screening.status === 'complete' &&
+        (screening.totals.exact > 0 || screening.totals.strong > 0)));
+
   return (
     <div className="space-y-6">
       <ScoreHeader run={run} />
@@ -88,6 +98,10 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
           <TabsList className="bg-card border border-border rounded-sm h-12 inline-flex min-w-full justify-start px-1">
             <TabsTrigger value="summary" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Summary Drivers</TabsTrigger>
             <TabsTrigger value="rules" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Rule Engine</TabsTrigger>
+            <TabsTrigger value="sanctions" data-testid="tab-sanctions" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+              Sanctions
+              {sanctionsAlert && <span className="ml-2 h-2 w-2 rounded-full bg-destructive" />}
+            </TabsTrigger>
             <TabsTrigger value="features" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Feature Matrix</TabsTrigger>
             <TabsTrigger value="consolidation" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Consolidation</TabsTrigger>
             <TabsTrigger value="timeline" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Timeline</TabsTrigger>
@@ -110,6 +124,10 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
 
         <TabsContent value="rules" className="m-0 focus-visible:outline-none">
           <RuleEngine run={run} onNavigateTxns={navigateToTransactions} />
+        </TabsContent>
+
+        <TabsContent value="sanctions" className="m-0 focus-visible:outline-none">
+          <SanctionsView run={run} />
         </TabsContent>
         
         <TabsContent value="features" className="m-0 focus-visible:outline-none">
@@ -188,23 +206,25 @@ function ScoreHeader({ run }: { run: AnalysisRun }) {
               <span>100%</span>
             </div>
             {/* Custom Multi-segment Gauge */}
-            <div className="h-2 w-full flex rounded-full overflow-hidden bg-muted">
-              {run.bandScale.map((b, i) => {
-                const width = (b.maxP - b.minP) * 100;
-                let color = 'bg-emerald-500';
-                if (b.band === 'Moderate') color = 'bg-primary';
-                if (b.band === 'Elevated') color = 'bg-amber-500';
-                if (b.band === 'High') color = 'bg-orange-500';
-                if (b.band === 'Critical') color = 'bg-destructive';
-                
-                return (
-                  <div key={b.band} className={`h-full opacity-30 ${color}`} style={{ width: `${width}%` }} />
-                );
-              })}
-              {/* The Marker */}
-              <div 
-                className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" 
-                style={{ left: `${run.probability * 100}%` }} 
+            <div className="relative">
+              <div className="h-2 w-full flex rounded-full overflow-hidden bg-muted">
+                {run.bandScale.map((b) => {
+                  const width = (b.maxP - b.minP) * 100;
+                  let color = 'bg-emerald-500';
+                  if (b.band === 'Moderate') color = 'bg-primary';
+                  if (b.band === 'Elevated') color = 'bg-amber-500';
+                  if (b.band === 'High') color = 'bg-orange-500';
+                  if (b.band === 'Critical') color = 'bg-destructive';
+
+                  return (
+                    <div key={b.band} className={`h-full opacity-30 ${color}`} style={{ width: `${width}%` }} />
+                  );
+                })}
+              </div>
+              {/* Score marker: anchored to the gauge, extends slightly past it */}
+              <div
+                className="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 bg-foreground z-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]"
+                style={{ left: `${run.probability * 100}%` }}
               />
             </div>
             <div className="text-center text-[10px] font-mono text-muted-foreground mt-2">
@@ -639,6 +659,7 @@ function ConsolidationView({ run }: { run: AnalysisRun }) {
 
 function TimelineView({ caseId }: { caseId: number }) {
   const { data, isLoading } = useGetCaseTimeline(caseId);
+  const [expanded, setExpanded] = useState(false);
 
   if (isLoading) return <div className="h-96 flex items-center justify-center font-mono text-primary animate-pulse">Loading timeline data...</div>;
   if (!data || data.length === 0) return <div className="p-8 text-center text-muted-foreground font-mono">No timeline data available.</div>;
@@ -666,57 +687,101 @@ function TimelineView({ caseId }: { caseId: number }) {
   const chartData = Object.values(monthlyData).sort((a, b) => a.month.localeCompare(b.month));
 
   return (
-    <Card className="bg-card border-border rounded-sm">
-      <CardHeader>
-        <CardTitle className="text-base font-mono uppercase tracking-wider">Temporal Behavior</CardTitle>
-        <CardDescription>Monthly aggregated flow velocity and cash intensity</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[400px] w-full mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis 
-                dataKey="month" 
-                stroke="hsl(var(--muted-foreground))" 
-                fontSize={10} 
-                tickMargin={10}
-                tickFormatter={(val) => {
-                  const [y, m] = val.split('-');
-                  return `${m}/${y.substring(2)}`;
-                }}
-              />
-              <YAxis 
-                yAxisId="left"
-                stroke="hsl(var(--muted-foreground))" 
-                fontSize={10}
-                tickFormatter={(val) => formatKwd(val)}
-              />
-              <YAxis 
-                yAxisId="right"
-                orientation="right"
-                stroke="hsl(var(--primary))" 
-                fontSize={10}
-                tickFormatter={(val) => formatKwd(val)}
-              />
-              <RechartsTooltip 
-                contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
-                itemStyle={{ color: 'hsl(var(--foreground))' }}
-                formatter={(value: number, name: string) => [formatKwd(value) + ' KWD', name]}
-                labelFormatter={(label) => `Month: ${label}`}
-              />
-              <Legend wrapperStyle={{ fontSize: '10px', fontFamily: 'var(--font-mono)' }} />
-              
-              <Bar yAxisId="left" dataKey="creditsKwd" name="Inflow" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} opacity={0.8} />
-              <Bar yAxisId="left" dataKey="debitsKwd" name="Outflow" fill="hsl(var(--chart-4))" radius={[2, 2, 0, 0]} opacity={0.8} />
-              
-              <Line yAxisId="right" type="monotone" dataKey="cashInKwd" name="Cash Dep" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="right" type="monotone" dataKey="cashOutKwd" name="Cash W/D" stroke="hsl(var(--chart-5))" strokeWidth={2} dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      <Card className="bg-card border-border rounded-sm">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle className="text-base font-mono uppercase tracking-wider">Temporal Behavior</CardTitle>
+            <CardDescription>Monthly aggregated flow velocity and cash intensity</CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-mono text-xs gap-1.5 shrink-0"
+            onClick={() => setExpanded(true)}
+            data-testid="button-expand-timeline"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Expand
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="h-[400px] w-full mt-4 cursor-zoom-in"
+            role="button"
+            tabIndex={0}
+            title="Click to expand the chart"
+            onClick={() => setExpanded(true)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(true); } }}
+            data-testid="chart-timeline-clickable"
+          >
+            <TemporalChart data={chartData} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent
+          className="w-[95vw] max-w-[95vw] sm:max-w-[95vw] bg-card border-border rounded-sm p-6"
+          data-testid="dialog-timeline-expanded"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-base font-mono uppercase tracking-wider">Temporal Behavior — Expanded View</DialogTitle>
+            <DialogDescription>Monthly aggregated flow velocity and cash intensity. Close with the X button or Esc.</DialogDescription>
+          </DialogHeader>
+          <div className="h-[70vh] w-full">
+            <TemporalChart data={chartData} large />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function TemporalChart({ data, large }: { data: any[]; large?: boolean }) {
+  const axisFontSize = large ? 12 : 10;
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+        <XAxis 
+          dataKey="month" 
+          stroke="hsl(var(--muted-foreground))" 
+          fontSize={axisFontSize} 
+          tickMargin={10}
+          tickFormatter={(val) => {
+            const [y, m] = val.split('-');
+            return `${m}/${y.substring(2)}`;
+          }}
+        />
+        <YAxis 
+          yAxisId="left"
+          stroke="hsl(var(--muted-foreground))" 
+          fontSize={axisFontSize}
+          tickFormatter={(val) => formatKwd(val)}
+        />
+        <YAxis 
+          yAxisId="right"
+          orientation="right"
+          stroke="hsl(var(--primary))" 
+          fontSize={axisFontSize}
+          tickFormatter={(val) => formatKwd(val)}
+        />
+        <RechartsTooltip 
+          contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-mono)' }}
+          itemStyle={{ color: 'hsl(var(--foreground))' }}
+          formatter={(value: number, name: string) => [formatKwd(value) + ' KWD', name]}
+          labelFormatter={(label) => `Month: ${label}`}
+        />
+        <Legend wrapperStyle={{ fontSize: large ? '12px' : '10px', fontFamily: 'var(--font-mono)' }} />
+        
+        <Bar yAxisId="left" dataKey="creditsKwd" name="Inflow" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} opacity={0.8} />
+        <Bar yAxisId="left" dataKey="debitsKwd" name="Outflow" fill="hsl(var(--chart-4))" radius={[2, 2, 0, 0]} opacity={0.8} />
+        
+        <Line yAxisId="right" type="monotone" dataKey="cashInKwd" name="Cash Dep" stroke="hsl(var(--chart-1))" strokeWidth={large ? 2.5 : 2} dot={{ r: large ? 4 : 3 }} />
+        <Line yAxisId="right" type="monotone" dataKey="cashOutKwd" name="Cash W/D" stroke="hsl(var(--chart-5))" strokeWidth={large ? 2.5 : 2} dot={{ r: large ? 4 : 3 }} />
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -1096,6 +1161,9 @@ function DispositionView({ run, onUpdate }: { run: AnalysisRun, onUpdate: () => 
   const [decision, setDecision] = useState<'escalate'|'watchlist'|'close' | ''>('');
   const [notes, setNotes] = useState('');
   const [analystName, setAnalystName] = useState('O. Analyst'); // Mock logged in user
+  const hypotheses = run.aiInvestigation?.hypotheses ?? [];
+  const [reviews, setReviews] = useState<Record<string, 'accepted' | 'dismissed' | 'undetermined'>>({});
+  const reportUrl = '/api/analysis-runs/' + run.id + '/report.pdf';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1109,7 +1177,13 @@ function DispositionView({ run, onUpdate }: { run: AnalysisRun, onUpdate: () => 
       data: {
         decision,
         notes,
-        analystName
+        analystName,
+        ...(hypotheses.length > 0 ? {
+          hypothesisReviews: hypotheses.map(h => ({
+            hypothesisId: h.hypothesisId,
+            verdict: reviews[h.hypothesisId] ?? 'undetermined'
+          }))
+        } : {})
       }
     }, {
       onSuccess: () => {
@@ -1154,6 +1228,32 @@ function DispositionView({ run, onUpdate }: { run: AnalysisRun, onUpdate: () => 
             <div className="bg-background/50 border border-border/50 rounded-sm p-4 text-sm text-foreground/90 whitespace-pre-wrap">
               {run.disposition.notes || 'No notes provided.'}
             </div>
+          </div>
+
+          {(run.disposition.hypothesisReviews?.length ?? 0) > 0 && (
+            <div className="mt-6 space-y-2">
+              <span className="text-muted-foreground block text-xs font-mono uppercase tracking-wider">AI Hypothesis Review</span>
+              <div className="space-y-1.5">
+                {(run.disposition.hypothesisReviews ?? []).map(rv => {
+                  const hyp = run.aiInvestigation?.hypotheses?.find(h => h.hypothesisId === rv.hypothesisId);
+                  return (
+                    <div key={rv.hypothesisId} className="flex items-center justify-between gap-3 bg-background/40 border border-border/40 rounded-sm px-3 py-2" data-testid={'review-' + rv.hypothesisId}>
+                      <span className="font-mono text-xs text-foreground/80 truncate">{rv.hypothesisId} - {hyp?.title ?? 'Hypothesis'}</span>
+                      <Badge variant="outline" className={'font-mono text-[10px] uppercase tracking-wider shrink-0 ' + (rv.verdict === 'accepted' ? 'border-emerald-500/50 text-emerald-500' : rv.verdict === 'dismissed' ? 'border-border text-muted-foreground' : 'border-amber-500/50 text-amber-500')}>{rv.verdict}</Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 pt-4 border-t border-border/50 flex justify-end">
+            <Button asChild variant="outline" className="font-mono text-xs uppercase tracking-wider rounded-sm border-primary/40 text-primary hover:bg-primary/10" data-testid="btn-export-pdf">
+              <a href={reportUrl} download>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export PDF Report
+              </a>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1212,6 +1312,37 @@ function DispositionView({ run, onUpdate }: { run: AnalysisRun, onUpdate: () => 
             </div>
           </div>
 
+          {hypotheses.length > 0 && (
+            <div className="space-y-3">
+              <Label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">AI Hypothesis Review <span className="text-muted-foreground/60 normal-case">(optional - unset rows are recorded as undetermined)</span></Label>
+              <div className="space-y-2">
+                {hypotheses.map(h => {
+                  const current = reviews[h.hypothesisId] ?? 'undetermined';
+                  return (
+                    <div key={h.hypothesisId} className="flex flex-col md:flex-row md:items-center gap-2 bg-background/40 border border-border/40 rounded-sm px-3 py-2.5" data-testid={'review-row-' + h.hypothesisId}>
+                      <span className="font-mono text-xs text-foreground/85 flex-1 min-w-0 truncate" title={h.title}>{h.hypothesisId} - {h.title}</span>
+                      <div className="flex gap-1.5 shrink-0">
+                        {(['accepted', 'dismissed', 'undetermined'] as const).map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setReviews(prev => ({ ...prev, [h.hypothesisId]: v }))}
+                            data-testid={'btn-' + v + '-' + h.hypothesisId}
+                            className={'px-2.5 py-1 rounded-sm border font-mono text-[10px] uppercase tracking-wider transition-colors ' + (current === v
+                              ? (v === 'accepted' ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-500' : v === 'dismissed' ? 'border-border bg-muted/60 text-foreground/80' : 'border-amber-500/60 bg-amber-500/10 text-amber-500')
+                              : 'border-border/50 bg-transparent text-muted-foreground hover:bg-muted/40')}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="notes" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Rationale & Notes</Label>
             <Textarea 
@@ -1223,7 +1354,13 @@ function DispositionView({ run, onUpdate }: { run: AnalysisRun, onUpdate: () => 
             />
           </div>
           
-          <div className="flex justify-end">
+          <div className="flex justify-between items-center gap-3">
+            <Button asChild variant="outline" className="font-mono text-xs uppercase tracking-wider rounded-sm" data-testid="btn-export-pdf-draft">
+              <a href={reportUrl} download>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export PDF
+              </a>
+            </Button>
             <Button 
               type="submit" 
               disabled={!decision || createDisposition.isPending}

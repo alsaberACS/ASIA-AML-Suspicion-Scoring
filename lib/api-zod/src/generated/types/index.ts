@@ -7,6 +7,10 @@
  */
 
 export * from './aiInvestigation';
+export * from './aiProgress';
+export * from './aiStageProgress';
+export * from './aiStageProgressStageId';
+export * from './aiStageProgressStatus';
 export * from './analysisRun';
 export * from './analysisRunAiStatus';
 export * from './analysisRunBand';
@@ -36,6 +40,8 @@ export * from './featureValueGroup';
 export * from './featureValueZone';
 export * from './gatedTechnicalTest';
 export * from './healthStatus';
+export * from './hypothesisReview';
+export * from './hypothesisReviewVerdict';
 export * from './internalTransferPair';
 export * from './investigationAction';
 export * from './investigationActionPriority';
@@ -56,6 +62,15 @@ export * from './profileConsistencyVerdict';
 export * from './ruleHit';
 export * from './ruleHitSeverity';
 export * from './runSummary';
+export * from './sanctionsListMeta';
+export * from './sanctionsListMetaId';
+export * from './sanctionsMatch';
+export * from './sanctionsMatchListId';
+export * from './sanctionsMatchTier';
+export * from './sanctionsScreenedName';
+export * from './sanctionsScreening';
+export * from './sanctionsScreeningStatus';
+export * from './sanctionsScreeningTotals';
 export * from './supportingFeature';
 export * from './technicalAnalysis';
 export * from './technicalFinding';

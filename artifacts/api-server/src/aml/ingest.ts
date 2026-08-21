@@ -1,6 +1,7 @@
 import { db, bankFilesTable, transactionsTable, casesTable, type BankFileRow } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { MappingError, parseWorkbook, type ForcedMapping } from "./parse";
+import { nameRefersToSubject } from "./identity";
 import { llmMapColumns } from "./ai";
 import { logger } from "../lib/logger";
 
@@ -34,6 +35,22 @@ export async function ingestFile(args: {
       );
     } else {
       throw err;
+    }
+  }
+
+  // A counterparty label that merely repeats the subject's own name explains
+  // nothing about the actual other side of the movement - suppress it so it
+  // cannot masquerade as an identified sender or beneficiary.
+  const caseRows = await db
+    .select({ subjectName: casesTable.subjectName })
+    .from(casesTable)
+    .where(eq(casesTable.id, caseId));
+  const subjectName = caseRows[0]?.subjectName;
+  if (subjectName) {
+    for (const t of result.txns) {
+      if (t.counterpartyName && nameRefersToSubject(t.counterpartyName, subjectName)) {
+        t.counterpartyName = null;
+      }
     }
   }
 

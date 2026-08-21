@@ -2,8 +2,13 @@ import {
   AnalysisRun, 
   TechnicalFinding, 
   InvestigationHypothesis, 
-  InvestigationAction
+  InvestigationAction,
+  useRetryAiAnalysis,
+  getGetAnalysisRunQueryKey,
+  getGetLatestAnalysisQueryKey
 } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   BrainCircuit, Cpu, AlertTriangle, AlertCircle, Info, 
   ArrowRight, Microscope, Crosshair, Target, CheckCircle2,
-  Terminal, Shield, Zap, Search, Fingerprint
+  Terminal, Shield, Zap, Search, Fingerprint, Loader2, RotateCcw, Circle
 } from 'lucide-react';
 import { 
   Accordion,
@@ -27,8 +32,22 @@ export function InvestigationIntelligenceView({
   run: AnalysisRun, 
   onNavigateTxns: (ids: number[]) => void 
 }) {
+  const queryClient = useQueryClient();
+  const retryAi = useRetryAiAnalysis({
+    mutation: {
+      onSuccess: () => {
+        toast.success('AI analysis relaunched - resuming from the last completed stage');
+        void queryClient.invalidateQueries({ queryKey: getGetLatestAnalysisQueryKey(run.caseId) });
+        void queryClient.invalidateQueries({ queryKey: getGetAnalysisRunQueryKey(run.id) });
+      },
+      onError: (err: unknown) => {
+        toast.error(err instanceof Error ? err.message : 'Could not relaunch the AI analysis');
+      },
+    },
+  });
   const technical = run.technicalAnalysis;
   const ai = run.aiInvestigation;
+  const aiProgress = run.aiProgress;
 
   const isAiLoading = !ai && (run.aiStatus === 'pending' || run.aiStatus === 'running');
   const isAiFailed = !ai && (run.aiStatus === 'failed' || run.aiStatus === 'skipped');
@@ -179,7 +198,35 @@ export function InvestigationIntelligenceView({
                 <p className="text-muted-foreground text-xs font-mono max-w-sm">
                   Agent is correlating technical findings, formulating hypotheses, and searching for adversarial counter-narratives...
                 </p>
-                <Progress value={65} className="h-1 w-48 mt-6 bg-muted/50 [&>div]:bg-primary" />
+                {aiProgress ? (
+                  <div className="w-full max-w-xs mt-6 space-y-1.5 text-left" data-testid="ai-stage-checklist">
+                    {aiProgress.stages.map((s) => (
+                      <div
+                        key={s.stageId}
+                        className={'flex items-center justify-between border rounded-sm px-3 py-2 bg-background/40 ' + (s.status === 'running' ? 'border-primary/40' : 'border-border/40')}
+                        data-testid={'ai-stage-' + s.stageId}
+                      >
+                        <span className={'font-mono text-xs ' + (s.status === 'pending' ? 'text-muted-foreground' : 'text-foreground/90')}>{s.label}</span>
+                        {s.status === 'complete' ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : s.status === 'running' ? (
+                          <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                        ) : s.status === 'failed' ? (
+                          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                        ) : (
+                          <Circle className="h-3 w-3 text-muted-foreground/40" />
+                        )}
+                      </div>
+                    ))}
+                    {aiProgress.attempts > 1 && (
+                      <p className="font-mono text-[10px] text-muted-foreground pt-1" data-testid="text-ai-attempts">
+                        Attempt {aiProgress.attempts} - resumed from the last completed stage; finished stages are preserved.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Progress value={65} className="h-1 w-48 mt-6 bg-muted/50 [&>div]:bg-primary" />
+                )}
               </div>
             ) : isAiFailed ? (
               <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center p-8">
@@ -188,12 +235,39 @@ export function InvestigationIntelligenceView({
                 <p className="text-muted-foreground text-xs font-mono max-w-sm bg-background/50 p-3 rounded-sm border border-border mt-2">
                   {run.aiError || 'The generative layer timed out or encountered an unexpected error.'}
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 font-mono text-xs rounded-sm border-primary/40 text-primary hover:bg-primary/10"
+                  onClick={() => retryAi.mutate({ runId: run.id })}
+                  disabled={retryAi.isPending}
+                  data-testid="btn-retry-ai"
+                >
+                  {retryAi.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5 mr-1.5" />}
+                  Retry AI Analysis
+                </Button>
+                {aiProgress && aiProgress.stages.some((s) => s.status === 'complete') && (
+                  <p className="font-mono text-[10px] text-muted-foreground mt-2" data-testid="text-retry-resume-note">
+                    Completed stages are preserved; the retry resumes where the analysis stopped.
+                  </p>
+                )}
               </div>
             ) : ai ? (
               <div className="p-6 space-y-8">
                 {memoStageFailed && (
-                  <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-sm text-xs text-amber-500/90 font-mono" data-testid="notice-memo-stage-failed">
-                    Investigation synthesis completed and is preserved. The later case-memo stage failed: {run.aiError || 'unknown error'}.
+                  <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-sm text-xs text-amber-500/90 font-mono flex items-center justify-between gap-3" data-testid="notice-memo-stage-failed">
+                    <span>Investigation synthesis completed and is preserved. The later case-memo stage failed: {run.aiError || 'unknown error'}.</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 font-mono text-[10px] rounded-sm border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                      onClick={() => retryAi.mutate({ runId: run.id })}
+                      disabled={retryAi.isPending}
+                      data-testid="btn-retry-ai-memo"
+                    >
+                      {retryAi.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RotateCcw className="h-3 w-3 mr-1" />}
+                      Retry
+                    </Button>
                   </div>
                 )}
                 {/* Executive Assessment */}

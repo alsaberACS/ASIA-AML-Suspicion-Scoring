@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AiInvestigation } from './aiInvestigation';
+import type { AiProgress } from './aiProgress';
 import type { AnalysisRunAiStatus } from './analysisRunAiStatus';
 import type { AnalysisRunBand } from './analysisRunBand';
 import type { AnalysisRunStatus } from './analysisRunStatus';
@@ -19,6 +20,7 @@ import type { InternalTransferPair } from './internalTransferPair';
 import type { MethodologicalObjection } from './methodologicalObjection';
 import type { ProfileConsistency } from './profileConsistency';
 import type { RuleHit } from './ruleHit';
+import type { SanctionsScreening } from './sanctionsScreening';
 import type { TechnicalAnalysis } from './technicalAnalysis';
 import type { TypologyFinding } from './typologyFinding';
 
@@ -61,5 +63,7 @@ export interface AnalysisRun {
   aiInvestigation?: AiInvestigation | null;
   /** @nullable */
   caseMemo?: string | null;
+  aiProgress?: AiProgress | null;
+  sanctionsScreening?: SanctionsScreening | null;
   disposition?: Disposition | null;
 }

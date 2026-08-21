@@ -4,7 +4,7 @@ AI-assisted money-laundering suspicion scoring for ASIA Consulting (Kuwait): one
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — API server (binds the `PORT` env var)
 - `pnpm --filter @workspace/aml-console run dev` — web console (Vite)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -22,7 +22,7 @@ AI-assisted money-laundering suspicion scoring for ASIA Consulting (Kuwait): one
 
 ## Where things live
 
-- `artifacts/api-server/src/aml/` — the entire scoring engine: `parse.ts` (adaptive xlsx extraction), `vocab.ts` (channel/narrative lexicons, counterparty extraction), `netting.ts` (internal-transfer pairing), `features.ts` (typology features + zones), `rules.ts` (M1 deterministic rules, FATF citations), `scoring.ts` (M2 Bayesian log-odds aggregation), `ai.ts` (P3 typology / P5 critic / P4 memo), `pipeline.ts` (orchestration), `demo.ts` (seed)
+- `artifacts/api-server/src/aml/` — the entire scoring engine: `parse.ts` (adaptive xlsx extraction), `vocab.ts` (channel/narrative lexicons, counterparty extraction), `netting.ts` (internal-transfer pairing), `features.ts` (typology features + zones), `rules.ts` (M1 deterministic rules, FATF citations), `scoring.ts` (M2 Bayesian log-odds aggregation), `ai.ts` (P3 typology / P5 critic / P4 memo), `pipeline.ts` (orchestration), `sanctions.ts` (OFAC SDN + UN Consolidated screening, evidence-only), `demo.ts` (seed)
 - `artifacts/api-server/demo-data/` — five heterogeneous demo statements (bank1..5.xlsx)
 - `artifacts/aml-console/src/pages/` — dashboard + case workspace (intake, evidence pack tabs)
 - `packages/api-spec/` — OpenAPI source of truth; `lib/api-client-react/` — generated hooks
@@ -33,6 +33,7 @@ AI-assisted money-laundering suspicion scoring for ASIA Consulting (Kuwait): one
 - Validation gate: per-file extraction quality (parse rate, balance reconciliation, duplicates) suppresses alerts when low — an unreliable ledger cannot raise confident alarms. Reconciliation is order-aware (newest-first exports are reconciled in reverse).
 - Counterparties are mined from narratives when no column exists ("Transfer from X", "InstaPay ref-ACCT") — this unlocks fan-in/funnel detection; settlement rails (Central Bank) are never counterparties.
 - Bands: Low <.05, Moderate <.2, Elevated <.5, High <.8, Critical ≥.8. Kuwait KD 3,000 cash trigger drives structuring features.
+- Sanctions screening (OFAC SDN incl. official aliases + UN Consolidated, daily cached download with atomic per-file publication) runs on every analysis over subject + named counterparties. Tiers: exact (order-insensitive token equality), strong (mutual coverage), possible (≥2 shared distinctive tokens — generic words like AND/GENERAL/TRADING never justify a hit). Results are evidence only: they never move the score, and if lists cannot be fetched the run says "unavailable — NOT a clean result" rather than pretending clean.
 
 ## Product
 

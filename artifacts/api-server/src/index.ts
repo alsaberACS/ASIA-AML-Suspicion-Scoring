@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { reconcileInterruptedAiRuns } from "./aml/ai";
+import { warmSanctionsCache } from "./aml/sanctions";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  void reconcileInterruptedAiRuns().catch((err) =>
+    logger.error({ err }, "AI run reconciliation failed"),
+  );
+  warmSanctionsCache();
 });

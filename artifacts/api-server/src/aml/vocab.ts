@@ -70,7 +70,7 @@ export function countryRisk(country: string | null): "black" | "grey" | null {
 const RX = {
   cashDeposit: /cash\s?dep|cdm|cash in|deposit.*cash|إيداع نقد|ايداع نقد|ايداع كاش/i,
   deposit: /deposit|إيداع|ايداع/i,
-  atm: /\batm\b|cash\s?w(?:ithdrawal|d)|\bcwd\b|سحب نقدي|سحب الي|سحب آلي/i,
+  atm: /\batm\b|cash\s?w(?:ithdrawal|d)|\bcwd\b|\bwdl\b|سحب نقدي|سحب الي|سحب آلي/i,
   withdrawal: /withdraw|سحب/i,
   salary: /salary|payroll|راتب|رواتب|wages/i,
   pos: /\bpos\b|point of sale|knet|purchase|مشتريات|نقطة بيع/i,
@@ -145,6 +145,48 @@ export function extractCounterpartyFromNarrative(narrative: string | null): stri
 
   m = n.match(/account transfer\s+(?:from|to)\s+([0-9X]{4,})/i);
   if (m) return `Account ${m[1]}`;
+
+  m = n.match(/operations\s+to\s+#\s*([0-9X]{4,})/i);
+  if (m) return `Account ${m[1]}`;
+
+  // Inward SWIFT lines repeat a party name between the amount and a pipe:
+  // "INWARD SWIFT PAYMENT # X,  46000.000 KWD,FAHAD | ...". The name may be
+  // the beneficiary rather than the remitter; ingestion suppresses it again
+  // when it matches the subject.
+  m = n.match(/swift[^|]*\|[^|]*KWD\s*,\s*([A-Z][A-Za-z .'-]{2,40}?)\s*\|/i);
+  if (m?.[1]) {
+    const name = m[1].trim();
+    if (
+      name.length >= 3 &&
+      !NAME_STOPWORDS.test(name) &&
+      !/^(normal|kwd|usd|eur)$/i.test(name) &&
+      !/^[0-9X\s.-]+$/i.test(name)
+    ) {
+      return name.slice(0, 40);
+    }
+  }
+
+  // POS narratives carry the merchant on the line after "POS PRCH" (or after
+  // a "POS-" prefix), wide-space padded before the city column.
+  const rawLines = narrative.split(/\r?\n/).map((line) => line.trim());
+  let merchantLine: string | null = null;
+  if (/^POS\s*PRCH/i.test(rawLines[0] ?? "") && rawLines.length > 1) {
+    merchantLine = rawLines[1] ?? null;
+  } else {
+    const pm = (rawLines[0] ?? "").match(/^POS-(.{3,})$/i);
+    if (pm) merchantLine = pm[1] ?? null;
+  }
+  if (merchantLine) {
+    const merchant = merchantLine.split(/\s{2,}/)[0]?.trim() ?? "";
+    if (
+      merchant.length >= 4 &&
+      /[A-Za-z]{3}/.test(merchant) &&
+      !NAME_STOPWORDS.test(merchant) &&
+      !/^(purchase|kuwait|kwt|visa|mastercard|knet)$/i.test(merchant)
+    ) {
+      return merchant.slice(0, 40);
+    }
+  }
 
   return null;
 }

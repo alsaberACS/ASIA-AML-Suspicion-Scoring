@@ -7,6 +7,7 @@ import type {
   TechnicalSeverity,
   Txn,
 } from "./types";
+import { buildIdentityIndex } from "./identity";
 
 const ENGINE_VERSION = "forensic-v1.1";
 const TESTS = [
@@ -179,6 +180,7 @@ function findCounterpartyConcentration(
   gated: GatedTechnicalTest[],
   caveat: string | null,
 ): void {
+  const identity = buildIdentityIndex(txns.map((t) => t.counterpartyName));
   const candidates: Array<{
     direction: Txn["direction"];
     hhi: number;
@@ -189,9 +191,9 @@ function findCounterpartyConcentration(
   }> = [];
   for (const direction of ["credit", "debit"] as const) {
     const named = txns.filter(
-      (t) => t.direction === direction && identifiableCounterparty(t.counterpartyName),
+      (t) => t.direction === direction && identity.keyOf(t.counterpartyName) != null,
     );
-    const byCp = groupBy(named, (t) => normalizeCounterparty(t.counterpartyName!));
+    const byCp = groupBy(named, (t) => identity.keyOf(t.counterpartyName)!);
     if (byCp.size < 3) continue;
     const values = [...byCp.entries()].map(([name, cpTxns]) => ({
       name,
@@ -207,14 +209,14 @@ function findCounterpartyConcentration(
       hhi,
       topShare: values[0]!.value / total,
       total,
-      topName: values[0]!.name,
+      topName: identity.displayOf(values[0]!.name),
       topTxns: values[0]!.txns,
     });
   }
   if (candidates.length === 0) {
     gated.push({
       testId: "counterparty_concentration",
-      reason: "No direction had at least 3 identifiable counterparties and 3,000 KWD of attributable value.",
+      reason: "No direction had at least 3 resolved counterparties and 3,000 KWD of attributable value.",
     });
     return;
   }
@@ -230,8 +232,11 @@ function findCounterpartyConcentration(
     metricValue: round3(best.hhi),
     benchmark: "HHI >= 0.35 or top counterparty share >= 50%",
     methodology:
-      "Value-weighted Herfindahl-Hirschman concentration by direction after excluding masked account references and unidentified payment-rail labels.",
-    caveat,
+      "Value-weighted Herfindahl-Hirschman concentration by direction after identity resolution: name variants cluster under conservative mutual-token-coverage matching, and masked account or payment-rail references count as distinct parties matched on their literal fragments.",
+    caveat: joinCaveats(
+      caveat,
+      "Masked references cannot be tied to a legal person; distinct fragments may belong to one party.",
+    ),
     txnIds: best.topTxns
       .sort((a, b) => b.amountKwd - a.amountKwd)
       .slice(0, 20)
@@ -300,14 +305,15 @@ function findNetworkAndCirculation(
   gated: GatedTechnicalTest[],
   caveat: string | null,
 ): void {
+  const identity = buildIdentityIndex(external.map((t) => t.counterpartyName));
   const inflow = external.filter(
-    (t) => t.direction === "credit" && identifiableCounterparty(t.counterpartyName),
+    (t) => t.direction === "credit" && identity.keyOf(t.counterpartyName) != null,
   );
-  const fanIn = new Set(inflow.map((t) => normalizeCounterparty(t.counterpartyName!))).size;
+  const fanIn = new Set(inflow.map((t) => identity.keyOf(t.counterpartyName)!)).size;
   const namedOut = external.filter(
-    (t) => t.direction === "debit" && identifiableCounterparty(t.counterpartyName),
+    (t) => t.direction === "debit" && identity.keyOf(t.counterpartyName) != null,
   );
-  const outByCp = groupBy(namedOut, (t) => normalizeCounterparty(t.counterpartyName!));
+  const outByCp = groupBy(namedOut, (t) => identity.keyOf(t.counterpartyName)!);
   const outTotal = sum(namedOut);
   const topOut = [...outByCp.entries()]
     .map(([name, cpTxns]) => ({ name, txns: cpTxns, value: sum(cpTxns) }))
@@ -324,7 +330,7 @@ function findNetworkAndCirculation(
       category: "network_circulation",
       title: "Many-to-one funnel network structure",
       severity: severity(fanIn >= 30 && topShare >= 0.7, fanIn >= 15 && topShare >= 0.5),
-      summary: `${fanIn} identifiable counterparties feed the subject while ${(topShare * 100).toFixed(0)}% of named outflow value converges on ${topOut.name}.`,
+      summary: `${fanIn} resolved counterparties feed the subject while ${(topShare * 100).toFixed(0)}% of named outflow value converges on ${identity.displayOf(topOut.name)}.`,
       metricValue: fanIn,
       benchmark: "At least 8 inflow counterparties plus >= 40% of named outflow to one beneficiary",
       methodology:
@@ -474,15 +480,16 @@ function findCounterpartyBridging(
   gated: GatedTechnicalTest[],
   caveat: string | null,
 ): void {
-  const named = txns.filter((t) => identifiableCounterparty(t.counterpartyName));
+  const identity = buildIdentityIndex(txns.map((t) => t.counterpartyName));
+  const named = txns.filter((t) => identity.keyOf(t.counterpartyName) != null);
   if (new Set(named.map((t) => t.bank)).size < 2) {
     gated.push({
       testId: "cross_bank_counterparty_bridging",
-      reason: "Identifiable counterparties are present at fewer than 2 institutions.",
+      reason: "Resolved counterparties (names or masked references) are present at fewer than 2 institutions.",
     });
     return;
   }
-  const byCp = groupBy(named, (t) => normalizeCounterparty(t.counterpartyName!));
+  const byCp = groupBy(named, (t) => identity.keyOf(t.counterpartyName)!);
   const bridges = [...byCp.entries()]
     .map(([name, cpTxns]) => ({
       name,
@@ -496,19 +503,23 @@ function findCounterpartyBridging(
   const top = bridges[0]!;
   const totalValue = bridges.reduce((s, b) => s + b.value, 0);
   const maxBanks = Math.max(...bridges.map((b) => b.bankCount));
+  const topLabel =
+    identity.kindOf(top.name) === "name"
+      ? identity.displayOf(top.name)
+      : `${identity.displayOf(top.name)} (masked reference matched literally)`;
   findings.push({
     findingId: "TECH-XB-01",
     category: "cross_bank_pattern",
     title: "Counterparties bridging multiple banks",
     severity: severity(maxBanks >= 3 || totalValue >= 20_000, bridges.length >= 2 || totalValue >= 8_000),
-    summary: `${bridges.length} counterpart${bridges.length === 1 ? "y transacts" : "ies transact"} with the subject at 2+ banks; the largest, ${top.name}, moves ${fmt(top.value)} KWD across ${top.bankCount} institutions.`,
+    summary: `${bridges.length} counterpart${bridges.length === 1 ? "y transacts" : "ies transact"} with the subject at 2+ banks; the largest, ${topLabel}, moves ${fmt(top.value)} KWD across ${top.bankCount} institutions.`,
     metricValue: bridges.length,
-    benchmark: "Same normalized counterparty at >= 2 institutions with >= 1,000 KWD combined value",
+    benchmark: "Same resolved counterparty (name cluster or literal masked fragment) at >= 2 institutions with >= 1,000 KWD combined value",
     methodology:
-      "Counterparty names are normalized and matched across institutions after excluding recognized internal transfers. Splitting one relationship across several banks fragments each institution's independent view of that relationship.",
+      "Counterparty identities are resolved before matching: name variants cluster under conservative mutual token coverage, and masked account or payment-rail references bridge institutions only when the visible fragment is literally identical. Recognized internal transfers are excluded.",
     caveat: joinCaveats(
       caveat,
-      "Name-based matching can merge or miss counterparties that appear under transliteration variants.",
+      "Name variants under transliteration can still merge or miss; masked-fragment matches are literal and may collide on shared prefixes.",
     ),
     txnIds: unique(
       bridges.flatMap((bridge) =>
@@ -762,18 +773,6 @@ function severity(critical: boolean, high: boolean): TechnicalSeverity {
 
 function severityRank(value: TechnicalSeverity): number {
   return value === "critical" ? 4 : value === "high" ? 3 : value === "medium" ? 2 : 1;
-}
-
-function identifiableCounterparty(name: string | null): boolean {
-  if (!name) return false;
-  const normalized = name.trim();
-  if (normalized.length < 3) return false;
-  if (/^(account|instapay)\b/i.test(normalized)) return false;
-  return !/^[0-9X\s.-]+$/i.test(normalized);
-}
-
-function normalizeCounterparty(name: string): string {
-  return name.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {

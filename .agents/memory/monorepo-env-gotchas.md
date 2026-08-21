@@ -8,3 +8,8 @@ description: Environment and codegen quirks in this pnpm workspace that repeated
 - **zod/v4 + drizzle-zod codegen exports PascalCase schema names** (`GetCaseParams`), and params schemas use `z.coerce` for numeric path params.
 - **Anthropic SDK content blocks:** TS type-predicate narrowing on `ContentBlock` unions fails under this config; use `filter(...)` + cast.
 - Run node scripts from inside the package dir that owns the dependency (pnpm strict node_modules layout).
+
+## Codegen
+- Regenerate API clients ONLY with: pnpm --filter @workspace/api-spec run codegen
+- **Why:** bare `orval` emits `import * as zod from 'zod'` while the generated code uses zod v4 APIs (zod.int()); the codegen script runs patch-zod-import.mjs to point generated schemas at zod/v4, then typechecks libs.
+- **How to apply:** any time lib/api-spec/openapi.yaml changes; never run plain `pnpm exec orval`.

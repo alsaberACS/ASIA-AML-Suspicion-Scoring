@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DispositionDecision } from './dispositionDecision';
+import type { HypothesisReview } from './hypothesisReview';
 
 export interface Disposition {
   id: number;
@@ -15,5 +16,6 @@ export interface Disposition {
   analystName?: string | null;
   /** @nullable */
   notes?: string | null;
+  hypothesisReviews?: HypothesisReview[] | null;
   createdAt: string;
 }
