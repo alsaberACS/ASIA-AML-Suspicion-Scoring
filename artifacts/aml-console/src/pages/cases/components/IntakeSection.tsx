@@ -8,9 +8,11 @@ import {
   useUploadCaseDisclosure,
   useDeleteCaseDisclosure,
   getGetCaseDisclosureQueryKey,
+  useReprocessCaseDisclosure,
   Case,
   Disclosure,
 } from '@workspace/api-client-react';
+import { useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -37,6 +39,7 @@ import {
   DatabaseZap,
   Activity,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -69,7 +72,7 @@ export default function IntakeSection({
         queryKey: getGetCaseDisclosureQueryKey(caseId),
         retry: false,
         refetchInterval: (query) =>
-          query.state.data?.status === 'processing' ? 4000 : false,
+          query.state.data?.status === 'processing' ? 2500 : false,
       },
     },
   );
@@ -646,6 +649,24 @@ function DisclosureCard({
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const reprocess = useReprocessCaseDisclosure();
+
+  const handleReread = () => {
+    if (confirm("Are you sure you want to re-read with AI? This will replace any manual corrections.")) {
+      reprocess.mutate({ caseId: disclosure.caseId }, {
+        onSuccess: () => {
+          toast.success("AI re-read started");
+          queryClient.invalidateQueries({ queryKey: getGetCaseDisclosureQueryKey(disclosure.caseId) });
+        },
+        onError: (err: any) => {
+          toast.error(`Re-read failed: ${err.message}`);
+        }
+      });
+    }
+  };
+
   const x = disclosure.extraction;
   const declarationTypeLabel =
     x?.declarationType === 'first'
@@ -709,8 +730,10 @@ function DisclosureCard({
                   className="flex items-center text-xs font-mono text-primary"
                   data-testid="status-disclosure-processing"
                 >
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" /> AI reading
-                  the handwritten form...
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  {disclosure.phase === 'reading_primary' ? 'First reader (Claude) scanning...' :
+                   disclosure.phase === 'reading_secondary' ? 'Second reader (Gemini) scanning...' :
+                   disclosure.phase === 'adjudicating' ? 'Cross-checking readings...' : 'AI processing...'}
                 </span>
               ) : disclosure.status === 'ready' ? (
                 <span
@@ -732,16 +755,42 @@ function DisclosureCard({
             </div>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          onClick={onDelete}
-          disabled={deleting}
-          data-testid="btn-delete-disclosure"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {disclosure.status !== 'processing' && disclosure.status !== 'failed' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 font-mono text-xs text-primary border-primary/30 hover:bg-primary/10"
+              onClick={() => setLocation(`/cases/${disclosure.caseId}/disclosure`)}
+              data-testid="btn-open-workbench"
+            >
+              Open Workbench
+            </Button>
+          )}
+          {disclosure.status !== 'processing' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 font-mono text-xs text-muted-foreground hover:text-foreground"
+              onClick={handleReread}
+              disabled={reprocess.isPending}
+              data-testid="btn-reread-ai"
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${reprocess.isPending ? 'animate-spin' : ''}`} />
+              Re-read
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={onDelete}
+            disabled={deleting}
+            data-testid="btn-delete-disclosure"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="text-sm space-y-4">
         {disclosure.status === 'processing' && (

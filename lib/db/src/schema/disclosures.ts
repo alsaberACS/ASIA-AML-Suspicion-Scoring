@@ -32,6 +32,15 @@ export const disclosuresTable = pgTable("disclosures", {
     .notNull()
     .defaultNow(),
   extractedAt: timestamp("extracted_at", { withTimezone: true }),
+  // Live progress note while status="processing":
+  // reading_primary | reading_secondary | adjudicating. Null when idle.
+  phase: text("phase"),
+  // Set when an investigator saves manual corrections to the extraction.
+  correctedAt: timestamp("corrected_at", { withTimezone: true }),
+  // Rotated on every upload AND every reprocess. Background-runner writes
+  // are conditional on it, so a zombie run that outlived the watchdog can
+  // never write over a newer run's result.
+  runToken: text("run_token"),
 });
 
 export type DisclosureRow = typeof disclosuresTable.$inferSelect;

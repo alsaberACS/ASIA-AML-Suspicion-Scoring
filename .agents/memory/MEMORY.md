@@ -8,6 +8,7 @@
 - [Identity resolution](identity-resolution.md) — counterparty analytics key on identity clusters; digit-preserving normalizer; masked refs merge only literally; self-references nulled at ingestion.
 - [Dev API access](dev-api-access.md) — proxy path /api-server serves the SPA (HTML 200 trap); reach the API via PORT from /proc; health is /api/healthz; latest run is GET /cases/:id/analysis.
 - [react-pdf pitfalls](react-pdf-pitfalls.md) — fixed absolute footer needs explicit height or >7-page docs crash; page/wrapper lineHeight breaks render-prop page numbers — set it per body style only.
+- [react-pdf viewer + Vite](react-pdf-viewer-vite.md) — v10 killed dist/esm CSS paths; worker needs ?url asset import; pdfjs-dist must be a direct dep pinned to react-pdf's exact version.
 - [Sanctions screening](sanctions-screening.md) — OFAC/UN endpoints 302 (plain GET, follow, no Range); possible-tier needs distinctive-token filter; PDF section numbers also hide in aiComplete ternaries.
 - [Disclosure extraction](disclosure-extraction.md) — whole-PDF document block to Claude works; upsert-runners need upload-token conditional writes; AI stages re-fetch async inputs at stage time.
 - [Tester console noise](tester-console-noise.md) — long-lived tester browsers accumulate stale HMR errors; hard-reload before treating console errors as real bugs.

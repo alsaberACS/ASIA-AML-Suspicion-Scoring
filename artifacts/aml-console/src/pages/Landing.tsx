@@ -73,7 +73,7 @@ export default function Landing({ onUnlock }: { onUnlock: () => void }) {
         <img
           src={import.meta.env.BASE_URL + 'brand/asia-logo-white.png'}
           alt="ASIA Data-Science"
-          className="h-8 w-auto object-contain"
+          className="h-12 w-auto object-contain"
         />
         <div className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 text-destructive px-3 py-1.5 rounded-sm">
           <ShieldAlert className="h-3.5 w-3.5" />

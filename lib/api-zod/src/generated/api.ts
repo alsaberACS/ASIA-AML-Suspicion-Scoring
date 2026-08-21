@@ -1600,7 +1600,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "mobile": zod.string().nullish(),
   "homePhone": zod.string().nullish(),
   "email": zod.string().nullish(),
-  "monthlySalaryKwd": zod.number().nullish()
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
 }),zod.null()]).optional(),
   "minorChildren": zod.array(zod.object({
   "name": zod.string(),
@@ -1609,7 +1613,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "idType": zod.string().nullish(),
   "idNumber": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "realEstate": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1618,7 +1626,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "ownershipPct": zod.number().nullish(),
   "propertyType": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "usufructRights": zod.array(zod.object({
   "beneficiaryName": zod.string().nullish(),
@@ -1626,7 +1638,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "areaSqm": zod.number().nullish(),
   "usageType": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "securities": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1636,7 +1652,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "quantityOrPct": zod.string().nullish(),
   "listed": zod.boolean().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "bankAccountsAndDeposits": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1645,7 +1665,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "kind": zod.string().nullish(),
   "valueKwd": zod.number().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "debtsOwed": zod.array(zod.object({
   "debtorName": zod.string().nullish(),
@@ -1654,7 +1678,11 @@ export const GetCaseDisclosureResponse = zod.object({
   "amountKwd": zod.number().nullish(),
   "finalRepaymentDate": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "valuableMovables": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1662,13 +1690,24 @@ export const GetCaseDisclosureResponse = zod.object({
   "count": zod.number().nullish(),
   "totalValueKwd": zod.number().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "sectionsMarkedNone": zod.array(zod.string()),
-  "extractionWarnings": zod.array(zod.string())
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional()
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
-  "extractedAt": zod.string().nullish()
+  "extractedAt": zod.string().nullish(),
+  "phase": zod.string().nullish(),
+  "correctedAt": zod.string().nullish()
 })
 
 
@@ -1713,7 +1752,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "mobile": zod.string().nullish(),
   "homePhone": zod.string().nullish(),
   "email": zod.string().nullish(),
-  "monthlySalaryKwd": zod.number().nullish()
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
 }),zod.null()]).optional(),
   "minorChildren": zod.array(zod.object({
   "name": zod.string(),
@@ -1722,7 +1765,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "idType": zod.string().nullish(),
   "idNumber": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "realEstate": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1731,7 +1778,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "ownershipPct": zod.number().nullish(),
   "propertyType": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "usufructRights": zod.array(zod.object({
   "beneficiaryName": zod.string().nullish(),
@@ -1739,7 +1790,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "areaSqm": zod.number().nullish(),
   "usageType": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "securities": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1749,7 +1804,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "quantityOrPct": zod.string().nullish(),
   "listed": zod.boolean().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "bankAccountsAndDeposits": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1758,7 +1817,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "kind": zod.string().nullish(),
   "valueKwd": zod.number().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "debtsOwed": zod.array(zod.object({
   "debtorName": zod.string().nullish(),
@@ -1767,7 +1830,11 @@ export const UploadCaseDisclosureResponse = zod.object({
   "amountKwd": zod.number().nullish(),
   "finalRepaymentDate": zod.string().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "valuableMovables": zod.array(zod.object({
   "ownerName": zod.string().nullish(),
@@ -1775,13 +1842,24 @@ export const UploadCaseDisclosureResponse = zod.object({
   "count": zod.number().nullish(),
   "totalValueKwd": zod.number().nullish(),
   "notes": zod.string().nullish(),
-  "uncertain": zod.boolean().optional()
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
 })),
   "sectionsMarkedNone": zod.array(zod.string()),
-  "extractionWarnings": zod.array(zod.string())
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional()
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
-  "extractedAt": zod.string().nullish()
+  "extractedAt": zod.string().nullish(),
+  "phase": zod.string().nullish(),
+  "correctedAt": zod.string().nullish()
 })
 
 
@@ -1793,5 +1871,436 @@ export const DeleteCaseDisclosureParams = zod.object({
 })
 
 export const DeleteCaseDisclosureResponse = zod.void()
+
+
+/**
+ * @summary Download the original uploaded disclosure PDF for side-by-side review
+ */
+export const GetCaseDisclosurePdfParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const GetCaseDisclosurePdfResponse = zod.unknown()
+
+
+/**
+ * @summary Save investigator corrections to the extracted declaration
+ */
+export const UpdateCaseDisclosureExtractionParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const UpdateCaseDisclosureExtractionBody = zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional()
+})
+
+export const UpdateCaseDisclosureExtractionResponse = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "error": zod.string().nullish(),
+  "extraction": zod.union([zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish(),
+  "phase": zod.string().nullish(),
+  "correctedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Re-run the dual-model AI reading on the stored PDF
+ */
+export const ReprocessCaseDisclosureParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const ReprocessCaseDisclosureResponse = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "error": zod.string().nullish(),
+  "extraction": zod.union([zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish(),
+  "phase": zod.string().nullish(),
+  "correctedAt": zod.string().nullish()
+})
 
 

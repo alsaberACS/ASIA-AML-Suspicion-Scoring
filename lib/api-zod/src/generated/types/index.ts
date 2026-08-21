@@ -37,6 +37,7 @@ export * from './disclosureDeclarant';
 export * from './disclosureExtraction';
 export * from './disclosureExtractionDeclarationType';
 export * from './disclosureMovable';
+export * from './disclosureReaders';
 export * from './disclosureRealEstate';
 export * from './disclosureReconciliation';
 export * from './disclosureReconciliationFinding';

@@ -39,4 +39,9 @@ export interface DisclosureDeclarant {
   email?: string | null;
   /** @nullable */
   monthlySalaryKwd?: number | null;
+  /** @nullable */
+  page?: number | null;
+  uncertainFields?: string[];
+  correctedFields?: string[];
+  alternates?: string[];
 }

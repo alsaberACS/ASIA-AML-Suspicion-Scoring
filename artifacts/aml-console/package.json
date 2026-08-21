@@ -73,5 +73,9 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "pdfjs-dist": "5.4.296",
+    "react-pdf": "^10.4.1"
   }
 }

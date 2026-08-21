@@ -3,19 +3,34 @@
  * 2016) - storage helpers, AI extraction from the handwritten form, and
  * reconciliation-output coercion.
  *
- * Extraction sends the PDF itself to the model as a document content block
- * (no server-side rasterization). The model is explicitly instructed to skip
- * the form's pre-printed illustrative example rows and read only the
- * handwritten entries. All model output is untrusted and coerced before it
- * is persisted.
+ * Extraction is a dual-reader pipeline over the PDF itself (no server-side
+ * rasterization):
+ *   1. reading_primary   - Claude reads the whole PDF as a document block.
+ *   2. reading_secondary - Gemini independently reads the same PDF.
+ *   3. adjudicating      - Claude re-examines the PDF with both readings and
+ *                          merges them: agreements settle, disagreements are
+ *                          re-checked against the ink and the rejected
+ *                          reading is preserved in `alternates`.
+ * If the secondary reader or the adjudication fails, the pipeline degrades
+ * to the primary reading and records a warning. Every row carries
+ * provenance: the PDF page it came from and the verbatim handwriting
+ * (`asWritten`). All model output is untrusted and coerced before it is
+ * persisted. Investigator corrections (via PUT) set `corrected` flags and
+ * never touch this pipeline.
  */
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { ai as gemini } from "@workspace/integrations-gemini-ai";
 import { db, disclosuresTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
-const MODEL = "claude-sonnet-4-6";
-const EXTRACTION_TIMEOUT_MS = 5 * 60 * 1000;
+const PRIMARY_MODEL = "claude-sonnet-4-6";
+const PRIMARY_READER_LABEL = "Claude Sonnet 4.6";
+const SECONDARY_MODEL = "gemini-3.1-pro-preview";
+const SECONDARY_READER_LABEL = "Gemini 3.1 Pro";
+// Three sequential model passes over a ~13-page scan need more headroom
+// than the old single-pass watchdog.
+const EXTRACTION_TIMEOUT_MS = 10 * 60 * 1000;
 
 const aiConfigured = (): boolean =>
   Boolean(
@@ -23,8 +38,29 @@ const aiConfigured = (): boolean =>
       process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
   );
 
+const geminiConfigured = (): boolean =>
+  Boolean(
+    process.env.AI_INTEGRATIONS_GEMINI_BASE_URL &&
+      process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+  );
+
 // ---------------------------------------------------------------------------
 // Types (mirror the API spec's DisclosureExtraction shape)
+
+/**
+ * Provenance and review state shared by every extracted row.
+ * - page: 1-based PDF page the handwritten entry appears on.
+ * - asWritten: short verbatim transcription of the ink (original Arabic).
+ * - alternates: readings the adjudicator rejected ("Reader B: 70,100").
+ * - corrected: an investigator manually fixed this row after extraction.
+ */
+export interface DisclosureRowProvenance {
+  uncertain?: boolean;
+  page?: number | null;
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
+}
 
 export interface DisclosureDeclarant {
   name: string | null;
@@ -43,38 +79,39 @@ export interface DisclosureDeclarant {
   homePhone: string | null;
   email: string | null;
   monthlySalaryKwd: number | null;
+  page?: number | null;
+  uncertainFields?: string[];
+  correctedFields?: string[];
+  alternates?: string[];
 }
 
-export interface DisclosureChild {
+export interface DisclosureChild extends DisclosureRowProvenance {
   name: string;
   dateOfBirth: string | null;
   relation: string | null;
   idType: string | null;
   idNumber: string | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureRealEstate {
+export interface DisclosureRealEstate extends DisclosureRowProvenance {
   ownerName: string | null;
   location: string;
   areaSqm: number | null;
   ownershipPct: number | null;
   propertyType: string | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureUsufruct {
+export interface DisclosureUsufruct extends DisclosureRowProvenance {
   beneficiaryName: string | null;
   location: string;
   areaSqm: number | null;
   usageType: string | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureSecurity {
+export interface DisclosureSecurity extends DisclosureRowProvenance {
   ownerName: string | null;
   instrumentType: string | null;
   company: string;
@@ -82,36 +119,38 @@ export interface DisclosureSecurity {
   quantityOrPct: string | null;
   listed: boolean | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureAccount {
+export interface DisclosureAccount extends DisclosureRowProvenance {
   ownerName: string | null;
   institution: string;
   institutionCountry: string | null;
   kind: string | null;
   valueKwd: number | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureDebt {
+export interface DisclosureDebt extends DisclosureRowProvenance {
   debtorName: string | null;
   creditor: string;
   creditorCountry: string | null;
   amountKwd: number | null;
   finalRepaymentDate: string | null;
   notes: string | null;
-  uncertain?: boolean;
 }
 
-export interface DisclosureMovable {
+export interface DisclosureMovable extends DisclosureRowProvenance {
   ownerName: string | null;
   description: string;
   count: number | null;
   totalValueKwd: number | null;
   notes: string | null;
-  uncertain?: boolean;
+}
+
+export interface DisclosureReaders {
+  primary: string;
+  secondary: string | null;
+  adjudicated: boolean;
 }
 
 export interface DisclosureExtraction {
@@ -130,6 +169,7 @@ export interface DisclosureExtraction {
   valuableMovables: DisclosureMovable[];
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
+  readers: DisclosureReaders | null;
 }
 
 export interface DisclosureReconciliationFinding {
@@ -181,6 +221,36 @@ const strArr = (v: unknown, maxItems: number, maxLen: number): string[] =>
 const uncertainOf = (o: Record<string, unknown>): { uncertain?: boolean } =>
   o.uncertain === true ? { uncertain: true } : {};
 
+/** Row provenance passthrough - only keeps well-formed values. */
+const provenanceOf = (
+  o: Record<string, unknown>,
+): Pick<DisclosureRowProvenance, "page" | "asWritten" | "alternates" | "corrected"> => {
+  const out: Pick<
+    DisclosureRowProvenance,
+    "page" | "asWritten" | "alternates" | "corrected"
+  > = {};
+  const page = num(o.page, 1, 500);
+  if (page != null) out.page = Math.round(page);
+  const asWritten = str(o.asWritten, 300);
+  if (asWritten) out.asWritten = asWritten;
+  const alternates = strArr(o.alternates, 4, 200);
+  if (alternates.length) out.alternates = alternates;
+  if (o.corrected === true) out.corrected = true;
+  return out;
+};
+
+const readersOf = (v: unknown): DisclosureReaders | null => {
+  if (!v || typeof v !== "object") return null;
+  const r = v as Record<string, unknown>;
+  const primary = str(r.primary, 80);
+  if (!primary) return null;
+  return {
+    primary,
+    secondary: str(r.secondary, 80),
+    adjudicated: r.adjudicated === true,
+  };
+};
+
 const SECTION_KEYS = [
   "minorChildren",
   "realEstate",
@@ -189,6 +259,25 @@ const SECTION_KEYS = [
   "bankAccountsAndDeposits",
   "debtsOwed",
   "valuableMovables",
+] as const;
+
+const DECLARANT_FIELD_KEYS = [
+  "name",
+  "nationality",
+  "residenceCountry",
+  "gender",
+  "civilId",
+  "passportNo",
+  "jobTitle",
+  "employer",
+  "jobStartDate",
+  "jobEndDate",
+  "workPhone",
+  "homeAddress",
+  "mobile",
+  "homePhone",
+  "email",
+  "monthlySalaryKwd",
 ] as const;
 
 export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
@@ -215,6 +304,18 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
           monthlySalaryKwd: num(d.monthlySalaryKwd, 0, 1_000_000),
         }
       : null;
+  if (declarant && d) {
+    const page = num(d.page, 1, 500);
+    if (page != null) declarant.page = Math.round(page);
+    const knownKey = (k: string) =>
+      (DECLARANT_FIELD_KEYS as readonly string[]).includes(k);
+    const uncertainFields = strArr(d.uncertainFields, 20, 40).filter(knownKey);
+    if (uncertainFields.length) declarant.uncertainFields = uncertainFields;
+    const correctedFields = strArr(d.correctedFields, 20, 40).filter(knownKey);
+    if (correctedFields.length) declarant.correctedFields = correctedFields;
+    const alternates = strArr(d.alternates, 8, 200);
+    if (alternates.length) declarant.alternates = alternates;
+  }
 
   const children: DisclosureChild[] = arr(o.minorChildren)
     .slice(0, 15)
@@ -228,6 +329,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         idNumber: str(x.idNumber, 60),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -243,6 +345,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         propertyType: str(x.propertyType, 80),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -257,6 +360,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         usageType: str(x.usageType, 80),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -273,6 +377,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         listed: boolOrNull(x.listed),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -288,6 +393,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         valueKwd: num(x.valueKwd, 0, MAX_MONEY_KWD),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -303,6 +409,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         finalRepaymentDate: str(x.finalRepaymentDate, 40),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -317,6 +424,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
         totalValueKwd: num(x.totalValueKwd, 0, MAX_MONEY_KWD),
         notes: str(x.notes, 240),
         ...uncertainOf(x),
+        ...provenanceOf(x),
       };
     });
 
@@ -346,6 +454,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
     valuableMovables: movables,
     sectionsMarkedNone: markedNone,
     extractionWarnings: strArr(o.extractionWarnings, 15, 300),
+    readers: readersOf(o.readers),
   };
 }
 
@@ -408,7 +517,12 @@ export function coerceDisclosureReconciliation(
 const kwd = (n: number | null): string =>
   n == null ? "value not stated" : `${n.toLocaleString("en-US")} KWD`;
 
-const mark = (u?: boolean): string => (u ? " [uncertain reading]" : "");
+const mark = (r: { uncertain?: boolean; corrected?: boolean }): string =>
+  r.corrected
+    ? " [corrected by investigator]"
+    : r.uncertain
+      ? " [uncertain reading]"
+      : "";
 
 export function renderDisclosureEvidence(x: DisclosureExtraction): string {
   const lines: string[] = [];
@@ -422,6 +536,23 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
   lines.push(
     `Declaration type: ${typeLabel}${x.declarationDate ? `; dated ${x.declarationDate}` : ""}${x.extractionWarnings.length ? `; ${x.extractionWarnings.length} extraction warning(s)` : ""}`,
   );
+  if (x.readers?.adjudicated) {
+    lines.push(
+      "Reading quality: extracted independently by two AI models and adjudicated against the original handwriting.",
+    );
+  }
+  const correctedRows = SECTION_KEYS.reduce(
+    (acc, key) =>
+      acc +
+      (x[key] as DisclosureRowProvenance[]).filter((r) => r.corrected).length,
+    0,
+  );
+  const correctedDeclarant = x.declarant?.correctedFields?.length ?? 0;
+  if (correctedRows + correctedDeclarant > 0) {
+    lines.push(
+      `Investigator corrections: ${correctedRows + correctedDeclarant} item(s) manually verified/corrected after AI reading - treat corrected values as authoritative.`,
+    );
+  }
   if (x.declarant) {
     const d = x.declarant;
     const bits = [d.name, d.jobTitle, d.employer].filter(Boolean).join(" | ");
@@ -433,7 +564,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
 
   if (x.minorChildren.length)
     lines.push(
-      `Minor children / persons under guardianship (${x.minorChildren.length}): ${x.minorChildren.map((c) => `${c.name}${c.dateOfBirth ? ` (DOB ${c.dateOfBirth})` : ""}${mark(c.uncertain)}`).join("; ")}`,
+      `Minor children / persons under guardianship (${x.minorChildren.length}): ${x.minorChildren.map((c) => `${c.name}${c.dateOfBirth ? ` (DOB ${c.dateOfBirth})` : ""}${mark(c)}`).join("; ")}`,
     );
   else lines.push(`Minor children / dependents: ${none("minorChildren") ? "NONE DECLARED" : "none read"}`);
 
@@ -441,7 +572,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     lines.push(`Real estate (${x.realEstate.length}):`);
     for (const r of x.realEstate.slice(0, 10))
       lines.push(
-        `- ${r.location}${r.propertyType ? `, ${r.propertyType}` : ""}${r.areaSqm != null ? `, ${r.areaSqm.toLocaleString("en-US")} sqm` : ""}${r.ownershipPct != null ? `, ${r.ownershipPct}% owned` : ""}${r.ownerName ? `, owner ${r.ownerName}` : ""}${r.notes ? ` (${r.notes})` : ""}${mark(r.uncertain)}`,
+        `- ${r.location}${r.propertyType ? `, ${r.propertyType}` : ""}${r.areaSqm != null ? `, ${r.areaSqm.toLocaleString("en-US")} sqm` : ""}${r.ownershipPct != null ? `, ${r.ownershipPct}% owned` : ""}${r.ownerName ? `, owner ${r.ownerName}` : ""}${r.notes ? ` (${r.notes})` : ""}${mark(r)}`,
       );
   } else lines.push(`Real estate: ${none("realEstate") ? "NONE DECLARED" : "none read"}`);
 
@@ -449,7 +580,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     lines.push(`Usufruct rights (${x.usufructRights.length}):`);
     for (const r of x.usufructRights.slice(0, 10))
       lines.push(
-        `- ${r.location}${r.usageType ? `, ${r.usageType}` : ""}${r.areaSqm != null ? `, ${r.areaSqm.toLocaleString("en-US")} sqm` : ""}${r.beneficiaryName ? `, beneficiary ${r.beneficiaryName}` : ""}${mark(r.uncertain)}`,
+        `- ${r.location}${r.usageType ? `, ${r.usageType}` : ""}${r.areaSqm != null ? `, ${r.areaSqm.toLocaleString("en-US")} sqm` : ""}${r.beneficiaryName ? `, beneficiary ${r.beneficiaryName}` : ""}${mark(r)}`,
       );
   } else lines.push(`Usufruct rights: ${none("usufructRights") ? "NONE DECLARED" : "none read"}`);
 
@@ -457,7 +588,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     lines.push(`Securities / company interests (${x.securities.length}):`);
     for (const s of x.securities.slice(0, 12))
       lines.push(
-        `- ${s.instrumentType ?? "interest"} in ${s.company}${s.quantityOrPct ? `, ${s.quantityOrPct}` : ""}${s.companyCountry ? `, ${s.companyCountry}` : ""}${s.listed != null ? (s.listed ? ", listed" : ", unlisted") : ""}${s.ownerName ? `, owner ${s.ownerName}` : ""}${mark(s.uncertain)}`,
+        `- ${s.instrumentType ?? "interest"} in ${s.company}${s.quantityOrPct ? `, ${s.quantityOrPct}` : ""}${s.companyCountry ? `, ${s.companyCountry}` : ""}${s.listed != null ? (s.listed ? ", listed" : ", unlisted") : ""}${s.ownerName ? `, owner ${s.ownerName}` : ""}${mark(s)}`,
       );
   } else lines.push(`Securities / company interests: ${none("securities") ? "NONE DECLARED" : "none read"}`);
 
@@ -467,7 +598,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     );
     for (const a of x.bankAccountsAndDeposits.slice(0, 12))
       lines.push(
-        `- ${a.institution}${a.institutionCountry ? ` (${a.institutionCountry})` : ""}${a.kind ? `, ${a.kind}` : ""}, ${kwd(a.valueKwd)}${a.ownerName ? `, holder ${a.ownerName}` : ""}${mark(a.uncertain)}`,
+        `- ${a.institution}${a.institutionCountry ? ` (${a.institutionCountry})` : ""}${a.kind ? `, ${a.kind}` : ""}, ${kwd(a.valueKwd)}${a.ownerName ? `, holder ${a.ownerName}` : ""}${mark(a)}`,
       );
   } else
     lines.push(
@@ -478,7 +609,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     lines.push(`Debts owed BY the declarant (${x.debtsOwed.length}):`);
     for (const d of x.debtsOwed.slice(0, 10))
       lines.push(
-        `- creditor ${d.creditor}${d.creditorCountry ? ` (${d.creditorCountry})` : ""}, ${kwd(d.amountKwd)}${d.finalRepaymentDate ? `, final repayment ${d.finalRepaymentDate}` : ""}${d.debtorName ? `, debtor ${d.debtorName}` : ""}${mark(d.uncertain)}`,
+        `- creditor ${d.creditor}${d.creditorCountry ? ` (${d.creditorCountry})` : ""}, ${kwd(d.amountKwd)}${d.finalRepaymentDate ? `, final repayment ${d.finalRepaymentDate}` : ""}${d.debtorName ? `, debtor ${d.debtorName}` : ""}${mark(d)}`,
       );
   } else lines.push(`Debts owed by declarant: ${none("debtsOwed") ? "NONE DECLARED" : "none read"}`);
 
@@ -486,7 +617,7 @@ export function renderDisclosureEvidence(x: DisclosureExtraction): string {
     lines.push(`High-value movables, threshold 3,000 KWD (${x.valuableMovables.length}):`);
     for (const m of x.valuableMovables.slice(0, 10))
       lines.push(
-        `- ${m.description}${m.count != null ? ` x${m.count}` : ""}, total ${kwd(m.totalValueKwd)}${m.ownerName ? `, owner ${m.ownerName}` : ""}${mark(m.uncertain)}`,
+        `- ${m.description}${m.count != null ? ` x${m.count}` : ""}, total ${kwd(m.totalValueKwd)}${m.ownerName ? `, owner ${m.ownerName}` : ""}${mark(m)}`,
       );
   } else lines.push(`High-value movables: ${none("valuableMovables") ? "NONE DECLARED" : "none read"}`);
 
@@ -513,8 +644,10 @@ Hard rules:
 1. The form contains pre-printed ILLUSTRATIVE EXAMPLE rows: typed text on gray-shaded rows, outlined with red dashed borders and small red arrows labeled "mithal tawdihi" in Arabic. These are part of the blank form. NEVER extract them as entries. Extract ONLY genuine handwritten entries.
 2. Keep Arabic text exactly as written - never translate or transliterate names of people, companies, banks, or places. Write numbers as plain digits.
 3. If handwriting is ambiguous, give your best reading, set "uncertain": true on that item, and add a short note to extractionWarnings describing the doubt.
-4. A section whose "la yujad" (none) checkbox is ticked, or whose table has no handwritten rows at all, was declared as none: include that section's key in sectionsMarkedNone and return an empty array for it.
-5. Never invent entries or fill gaps by assumption. Reply with ONLY the JSON object - no prose, no code fences.`;
+4. PROVENANCE: on every extracted row AND on the declarant object, set "page" to the 1-based page number of the PDF where that entry is handwritten. On every row also set "asWritten" to a short verbatim transcription (max ~25 words, original Arabic script, digits as inked) of the key handwritten cells you read for that row - the raw ink before any normalization.
+5. If any individual declarant field is an uncertain reading, list that field's JSON key in declarant.uncertainFields (for example ["civilId","mobile"]).
+6. A section whose "la yujad" (none) checkbox is ticked, or whose table has no handwritten rows at all, was declared as none: include that section's key in sectionsMarkedNone and return an empty array for it.
+7. Never invent entries or fill gaps by assumption. Reply with ONLY the JSON object - no prose, no code fences.`;
 
 const EXTRACT_USER = `Read this declaration page by page. The form's layout:
 - An instructions page with a small table of declaration types (first declaration / update / final declaration) where one row is ticked by hand - that tick is the declarationType (iqrar awwal = first, tahdith = update, iqrar nihai = final).
@@ -539,23 +672,27 @@ Return ONLY this JSON object:
     "name": "...", "nationality": "...", "residenceCountry": "...", "gender": "...",
     "civilId": "...", "passportNo": "...", "jobTitle": "...", "employer": "...",
     "jobStartDate": "...", "jobEndDate": null, "workPhone": "...", "homeAddress": "...",
-    "mobile": "...", "homePhone": "...", "email": "...", "monthlySalaryKwd": 2100
+    "mobile": "...", "homePhone": "...", "email": "...", "monthlySalaryKwd": 2100,
+    "page": 2, "uncertainFields": []
   },
-  "minorChildren": [{"name": "...", "dateOfBirth": "...", "relation": "...", "idType": "...", "idNumber": "...", "notes": null, "uncertain": false}],
-  "realEstate": [{"ownerName": "...", "location": "...", "areaSqm": 500, "ownershipPct": 50, "propertyType": "...", "notes": null, "uncertain": false}],
-  "usufructRights": [{"beneficiaryName": "...", "location": "...", "areaSqm": 2000, "usageType": "...", "notes": null, "uncertain": false}],
-  "securities": [{"ownerName": "...", "instrumentType": "...", "company": "...", "companyCountry": "...", "quantityOrPct": "...", "listed": true, "notes": null, "uncertain": false}],
-  "bankAccountsAndDeposits": [{"ownerName": "...", "institution": "...", "institutionCountry": "...", "kind": "...", "valueKwd": 10000, "notes": null, "uncertain": false}],
-  "debtsOwed": [{"debtorName": "...", "creditor": "...", "creditorCountry": "...", "amountKwd": 15000, "finalRepaymentDate": "...", "notes": null, "uncertain": false}],
-  "valuableMovables": [{"ownerName": "...", "description": "...", "count": 2, "totalValueKwd": 25000, "notes": null, "uncertain": false}],
+  "minorChildren": [{"name": "...", "dateOfBirth": "...", "relation": "...", "idType": "...", "idNumber": "...", "notes": null, "uncertain": false, "page": 4, "asWritten": "..."}],
+  "realEstate": [{"ownerName": "...", "location": "...", "areaSqm": 500, "ownershipPct": 50, "propertyType": "...", "notes": null, "uncertain": false, "page": 5, "asWritten": "..."}],
+  "usufructRights": [{"beneficiaryName": "...", "location": "...", "areaSqm": 2000, "usageType": "...", "notes": null, "uncertain": false, "page": 6, "asWritten": "..."}],
+  "securities": [{"ownerName": "...", "instrumentType": "...", "company": "...", "companyCountry": "...", "quantityOrPct": "...", "listed": true, "notes": null, "uncertain": false, "page": 7, "asWritten": "..."}],
+  "bankAccountsAndDeposits": [{"ownerName": "...", "institution": "...", "institutionCountry": "...", "kind": "...", "valueKwd": 10000, "notes": null, "uncertain": false, "page": 8, "asWritten": "..."}],
+  "debtsOwed": [{"debtorName": "...", "creditor": "...", "creditorCountry": "...", "amountKwd": 15000, "finalRepaymentDate": "...", "notes": null, "uncertain": false, "page": 9, "asWritten": "..."}],
+  "valuableMovables": [{"ownerName": "...", "description": "...", "count": 2, "totalValueKwd": 25000, "notes": null, "uncertain": false, "page": 10, "asWritten": "..."}],
   "sectionsMarkedNone": ["realEstate"],
   "extractionWarnings": ["..."]
 }
 Use null for any field that is blank or unreadable. All monetary values are Kuwaiti dinars (KWD).`;
 
-async function callExtraction(contentBase64: string, nudge?: string): Promise<string> {
+async function callPrimaryExtraction(
+  contentBase64: string,
+  nudge?: string,
+): Promise<string> {
   const resp = await anthropic.messages.create({
-    model: MODEL,
+    model: PRIMARY_MODEL,
     max_tokens: 8192,
     system: EXTRACT_SYSTEM,
     messages: [
@@ -581,14 +718,12 @@ async function callExtraction(contentBase64: string, nudge?: string): Promise<st
     .join("\n");
 }
 
-export async function extractDisclosure(
-  contentBase64: string,
-): Promise<DisclosureExtraction> {
-  const first = await callExtraction(contentBase64);
+async function extractPrimary(contentBase64: string): Promise<DisclosureExtraction> {
+  const first = await callPrimaryExtraction(contentBase64);
   try {
     return coerceDisclosureExtraction(extractJsonLoose(first));
   } catch {
-    const retry = await callExtraction(
+    const retry = await callPrimaryExtraction(
       contentBase64,
       "Your previous reply was not valid JSON. Respond again with ONLY the JSON object - no prose, no code fences.",
     );
@@ -596,12 +731,187 @@ export async function extractDisclosure(
   }
 }
 
+/** Independent second reading of the same PDF by Gemini. */
+async function callSecondaryExtraction(contentBase64: string): Promise<string> {
+  const resp = await gemini.models.generateContent({
+    model: SECONDARY_MODEL,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            inlineData: {
+              mimeType: "application/pdf",
+              data: contentBase64,
+            },
+          },
+          { text: `${EXTRACT_SYSTEM}\n\n${EXTRACT_USER}` },
+        ],
+      },
+    ],
+    config: {
+      maxOutputTokens: 16384,
+      responseMimeType: "application/json",
+    },
+  });
+  return resp.text ?? "";
+}
+
+const ADJUDICATE_SYSTEM = `You are the senior reviewer reconciling two INDEPENDENT AI readings of the same scanned handwritten Kuwaiti financial disclosure form (iqrar al-dhimma al-maliyya). You have the original PDF plus Reader A's JSON and Reader B's JSON. Re-examine the actual handwriting yourself wherever they differ - the PDF is the only ground truth.
+Rules:
+1. Agreement: when both readers give the same value, keep it and clear "uncertain" unless the reading is still genuinely doubtful in the ink.
+2. Disagreement: look at that spot in the PDF yourself, choose the more plausible reading, set "uncertain": true, and record each rejected plausible reading in that item's "alternates" array as a short note like "second reader saw: 70,100".
+3. Declarant fields: same logic. List still-doubtful field keys in declarant.uncertainFields and put rejected readings in declarant.alternates prefixed by the field key, e.g. "mobile - second reader saw: 99887766".
+4. Rows found by only one reader: include them ONLY if you can see a genuine handwritten row in the PDF at that spot. NEVER include the form's pre-printed example rows (typed text, gray shading, red dashed border, "mithal tawdihi").
+5. Keep "page" and "asWritten" (verbatim Arabic, max ~25 words) accurate on every row - fix them if a reader got them wrong.
+6. Keep Arabic text exactly as written - never translate or transliterate names. Numbers as plain digits.
+7. Rebuild extractionWarnings: keep only doubts that remain after cross-checking; mention materially resolved conflicts in one short note each; no duplicates.
+8. Output the SAME JSON schema as the readings (do not add new keys). Reply with ONLY the JSON object - no prose, no code fences.`;
+
+async function callAdjudication(
+  contentBase64: string,
+  primary: DisclosureExtraction,
+  secondary: DisclosureExtraction,
+  nudge?: string,
+): Promise<string> {
+  const text = `Reader A (primary) JSON:
+${JSON.stringify(primary)}
+
+Reader B (secondary) JSON:
+${JSON.stringify(secondary)}
+
+Compare them against the attached PDF and produce the final adjudicated JSON now.${nudge ? `\n\n${nudge}` : ""}`;
+  const resp = await anthropic.messages.create({
+    model: PRIMARY_MODEL,
+    max_tokens: 8192,
+    system: ADJUDICATE_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: contentBase64,
+            },
+          },
+          { type: "text", text },
+        ],
+      },
+    ],
+  });
+  return resp.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("\n");
+}
+
+async function adjudicate(
+  contentBase64: string,
+  primary: DisclosureExtraction,
+  secondary: DisclosureExtraction,
+): Promise<DisclosureExtraction> {
+  const first = await callAdjudication(contentBase64, primary, secondary);
+  try {
+    return coerceDisclosureExtraction(extractJsonLoose(first));
+  } catch {
+    const retry = await callAdjudication(
+      contentBase64,
+      primary,
+      secondary,
+      "Your previous reply was not valid JSON. Respond again with ONLY the JSON object - no prose, no code fences.",
+    );
+    return coerceDisclosureExtraction(extractJsonLoose(retry));
+  }
+}
+
+/** Minimal logger surface the pipeline needs (avoids pino generic friction). */
+interface ExtractionLog {
+  info(obj: unknown, msg?: string): void;
+  warn(obj: unknown, msg?: string): void;
+}
+
+/**
+ * Full dual-reader pipeline. Degrades gracefully: if the secondary reader or
+ * the adjudication fails, the primary reading is returned with a warning.
+ */
+async function runDualExtraction(
+  contentBase64: string,
+  setPhase: (phase: string) => Promise<void>,
+  log: ExtractionLog,
+): Promise<DisclosureExtraction> {
+  await setPhase("reading_primary");
+  const primary = await extractPrimary(contentBase64);
+  log.info(
+    { accounts: primary.bankAccountsAndDeposits.length, warnings: primary.extractionWarnings.length },
+    "primary reading complete",
+  );
+
+  let secondary: DisclosureExtraction | null = null;
+  if (geminiConfigured()) {
+    await setPhase("reading_secondary");
+    try {
+      secondary = coerceDisclosureExtraction(
+        extractJsonLoose(await callSecondaryExtraction(contentBase64)),
+      );
+      log.info(
+        { accounts: secondary.bankAccountsAndDeposits.length, warnings: secondary.extractionWarnings.length },
+        "secondary reading complete",
+      );
+    } catch (err) {
+      log.warn({ err }, "secondary reader failed; continuing with single reading");
+    }
+  } else {
+    log.warn("secondary reader not configured; single-model reading");
+  }
+
+  if (!secondary) {
+    return {
+      ...primary,
+      readers: { primary: PRIMARY_READER_LABEL, secondary: null, adjudicated: false },
+      extractionWarnings: [
+        ...primary.extractionWarnings,
+        "Second AI reader was unavailable for this run; values reflect a single reading.",
+      ].slice(0, 16),
+    };
+  }
+
+  await setPhase("adjudicating");
+  try {
+    const final = await adjudicate(contentBase64, primary, secondary);
+    return {
+      ...final,
+      readers: {
+        primary: PRIMARY_READER_LABEL,
+        secondary: SECONDARY_READER_LABEL,
+        adjudicated: true,
+      },
+    };
+  } catch (err) {
+    log.warn({ err }, "adjudication failed; keeping primary reading");
+    return {
+      ...primary,
+      readers: {
+        primary: PRIMARY_READER_LABEL,
+        secondary: SECONDARY_READER_LABEL,
+        adjudicated: false,
+      },
+      extractionWarnings: [
+        ...primary.extractionWarnings,
+        "Cross-check between the two AI readers could not be completed; values reflect the primary reading.",
+      ].slice(0, 16),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Background extraction runner (mirrors the AI-run pattern: fire-and-forget,
 // resumable after restarts, never leaves a row stuck in "processing").
 
-// Maps disclosure id -> uploadedAt millis of the upload being extracted.
-const activeExtractions = new Map<number, number>();
+// Maps disclosure id -> run token of the extraction currently in flight.
+const activeExtractions = new Map<number, string>();
 
 export async function runDisclosureExtraction(disclosureId: number): Promise<void> {
   const log = logger.child({ disclosureId, layer: "disclosure" });
@@ -610,28 +920,35 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
     .from(disclosuresTable)
     .where(eq(disclosuresTable.id, disclosureId));
   if (!row || row.status !== "processing") return;
-  // The upload timestamp identifies THIS upload. A replacement upload
-  // rewrites the row with a fresh uploadedAt, and every write below is
-  // conditional on it, so a stale in-flight extraction can never
-  // overwrite the newer PDF's row.
-  const token = row.uploadedAt.getTime();
+  // Every upload AND every reprocess rotates run_token, and every write
+  // below is conditional on it (plus uploadedAt and status=processing), so
+  // a stale in-flight extraction - including a zombie run that outlived
+  // the watchdog - can never write over a newer run's row.
+  const token = row.runToken ?? `legacy:${row.uploadedAt.getTime()}`;
   if (activeExtractions.get(disclosureId) === token) {
     log.warn("extraction already in progress for this upload; ignoring duplicate launch");
     return;
   }
   activeExtractions.set(disclosureId, token);
-  const sameUpload = () =>
+  const sameRun = () =>
     and(
       eq(disclosuresTable.id, disclosureId),
       eq(disclosuresTable.uploadedAt, row.uploadedAt),
+      row.runToken === null
+        ? isNull(disclosuresTable.runToken)
+        : eq(disclosuresTable.runToken, row.runToken),
       eq(disclosuresTable.status, "processing"),
     );
+  const setPhase = async (phase: string): Promise<void> => {
+    await db.update(disclosuresTable).set({ phase }).where(sameRun());
+    log.info({ phase }, "extraction phase");
+  };
   try {
     if (!aiConfigured()) {
       await db
         .update(disclosuresTable)
-        .set({ status: "failed", error: "AI integration not configured" })
-        .where(sameUpload());
+        .set({ status: "failed", error: "AI integration not configured", phase: null })
+        .where(sameRun());
       return;
     }
     log.info({ filename: row.filename, bytes: row.fileSizeBytes }, "extraction starting");
@@ -649,7 +966,10 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
     });
     let extraction: DisclosureExtraction;
     try {
-      extraction = await Promise.race([extractDisclosure(row.contentBase64), timeout]);
+      extraction = await Promise.race([
+        runDualExtraction(row.contentBase64, setPhase, log),
+        timeout,
+      ]);
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -660,8 +980,11 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
         extraction: extraction as unknown,
         error: null,
         extractedAt: new Date(),
+        phase: null,
+        // A fresh AI reading supersedes any older manual corrections.
+        correctedAt: null,
       })
-      .where(sameUpload())
+      .where(sameRun())
       .returning({ id: disclosuresTable.id });
     if (updated.length === 0) {
       log.warn("disclosure was replaced mid-extraction; stale result discarded");
@@ -672,6 +995,7 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
         accounts: extraction.bankAccountsAndDeposits.length,
         realEstate: extraction.realEstate.length,
         warnings: extraction.extractionWarnings.length,
+        adjudicated: extraction.readers?.adjudicated ?? false,
       },
       "extraction complete",
     );
@@ -682,8 +1006,9 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
       .set({
         status: "failed",
         error: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500),
+        phase: null,
       })
-      .where(sameUpload())
+      .where(sameRun())
       .returning({ id: disclosuresTable.id })
       .catch(() => []);
     if (updated.length === 0) {

@@ -19,4 +19,10 @@ export interface DisclosureChild {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }

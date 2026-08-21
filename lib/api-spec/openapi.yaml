@@ -441,6 +441,66 @@ paths:
           description: Deleted
         "404":
           description: No disclosure uploaded for this case
+  /cases/{caseId}/disclosure/pdf:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getCaseDisclosurePdf
+      summary: Download the original uploaded disclosure PDF for side-by-side review
+      responses:
+        "200":
+          description: The stored PDF document
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404":
+          description: No disclosure uploaded for this case
+  /cases/{caseId}/disclosure/extraction:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    put:
+      operationId: updateCaseDisclosureExtraction
+      summary: Save investigator corrections to the extracted declaration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisclosureExtraction" }
+      responses:
+        "200":
+          description: Corrections saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Disclosure" }
+        "404":
+          description: No disclosure uploaded for this case
+        "409":
+          description: Extraction is currently running; corrections are locked
+  /cases/{caseId}/disclosure/reprocess:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: reprocessCaseDisclosure
+      summary: Re-run the dual-model AI reading on the stored PDF
+      responses:
+        "202":
+          description: Extraction restarted in the background
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Disclosure" }
+        "404":
+          description: No disclosure uploaded for this case
+        "409":
+          description: Extraction already running
 components:
   parameters:
     CaseId:
@@ -1072,6 +1132,16 @@ components:
         homePhone: { type: ["string", "null"] }
         email: { type: ["string", "null"] }
         monthlySalaryKwd: { type: ["number", "null"] }
+        page: { type: ["integer", "null"] }
+        uncertainFields:
+          type: array
+          items: { type: string }
+        correctedFields:
+          type: array
+          items: { type: string }
+        alternates:
+          type: array
+          items: { type: string }
     DisclosureChild:
       type: object
       required: [name]
@@ -1083,6 +1153,12 @@ components:
         idNumber: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureRealEstate:
       type: object
       required: [location]
@@ -1094,6 +1170,12 @@ components:
         propertyType: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureUsufruct:
       type: object
       required: [location]
@@ -1104,6 +1186,12 @@ components:
         usageType: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureSecurity:
       type: object
       required: [company]
@@ -1116,6 +1204,12 @@ components:
         listed: { type: ["boolean", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureAccount:
       type: object
       required: [institution]
@@ -1127,6 +1221,12 @@ components:
         valueKwd: { type: ["number", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureDebt:
       type: object
       required: [creditor]
@@ -1138,6 +1238,12 @@ components:
         finalRepaymentDate: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureMovable:
       type: object
       required: [description]
@@ -1148,6 +1254,12 @@ components:
         totalValueKwd: { type: ["number", "null"] }
         notes: { type: ["string", "null"] }
         uncertain: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+        corrected: { type: boolean }
     DisclosureExtraction:
       type: object
       required: [declarationType, minorChildren, realEstate, usufructRights, securities, bankAccountsAndDeposits, debtsOwed, valuableMovables, sectionsMarkedNone, extractionWarnings]
@@ -1188,6 +1300,17 @@ components:
         extractionWarnings:
           type: array
           items: { type: string }
+        readers:
+          oneOf:
+            - $ref: "#/components/schemas/DisclosureReaders"
+            - type: "null"
+    DisclosureReaders:
+      type: object
+      required: [primary, adjudicated]
+      properties:
+        primary: { type: string }
+        secondary: { type: ["string", "null"] }
+        adjudicated: { type: boolean }
     Disclosure:
       type: object
       required: [id, caseId, filename, fileSizeBytes, status, uploadedAt]
@@ -1204,6 +1327,8 @@ components:
             - type: "null"
         uploadedAt: { type: string }
         extractedAt: { type: ["string", "null"] }
+        phase: { type: ["string", "null"] }
+        correctedAt: { type: ["string", "null"] }
     DisclosureReconciliationFinding:
       type: object
       required: [findingId, category, severity, title, detail, txnIds, disclosureRefs]

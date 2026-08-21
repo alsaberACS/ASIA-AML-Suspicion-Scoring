@@ -1,13 +1,18 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db, disclosuresTable, casesTable } from "@workspace/db";
 import {
   DeleteCaseDisclosureParams,
   GetCaseDisclosureParams,
+  GetCaseDisclosurePdfParams,
+  ReprocessCaseDisclosureParams,
+  UpdateCaseDisclosureExtractionBody,
+  UpdateCaseDisclosureExtractionParams,
   UploadCaseDisclosureBody,
   UploadCaseDisclosureParams,
 } from "@workspace/api-zod";
-import { runDisclosureExtraction } from "../aml/disclosure";
+import { randomUUID } from "node:crypto";
+import { coerceDisclosureExtraction, runDisclosureExtraction } from "../aml/disclosure";
 import { disclosureToApi } from "../aml/serialize";
 import { logger } from "../lib/logger";
 import { h } from "./util";
@@ -27,6 +32,31 @@ router.get(
       return;
     }
     res.json(disclosureToApi(row));
+  }),
+);
+
+router.get(
+  "/cases/:caseId/disclosure/pdf",
+  h(async (req, res) => {
+    const { caseId } = GetCaseDisclosurePdfParams.parse(req.params);
+    const [row] = await db
+      .select()
+      .from(disclosuresTable)
+      .where(eq(disclosuresTable.caseId, caseId));
+    if (!row) {
+      res.status(404).json({ error: "no disclosure uploaded for this case" });
+      return;
+    }
+    const buffer = Buffer.from(row.contentBase64, "base64");
+    // Header values must stay ASCII-safe; Arabic filenames collapse to
+    // underscores, which is fine for an inline viewer.
+    const safeName =
+      row.filename.replace(/[^\x20-\x7e]/g, "_").replace(/["\\;]/g, "_").trim() ||
+      "disclosure.pdf";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.send(buffer);
   }),
 );
 
@@ -73,10 +103,13 @@ router.post(
         contentBase64: body.contentBase64,
         fileSizeBytes: buffer.length,
         status: "processing",
+        phase: "reading_primary",
         error: null,
         extraction: null,
         uploadedAt: new Date(),
         extractedAt: null,
+        correctedAt: null,
+        runToken: randomUUID(),
       })
       .onConflictDoUpdate({
         target: disclosuresTable.caseId,
@@ -85,10 +118,13 @@ router.post(
           contentBase64: body.contentBase64,
           fileSizeBytes: buffer.length,
           status: "processing",
+          phase: "reading_primary",
           error: null,
           extraction: null,
           uploadedAt: new Date(),
           extractedAt: null,
+          correctedAt: null,
+          runToken: randomUUID(),
         },
       })
       .returning();
@@ -96,6 +132,82 @@ router.post(
       logger.error({ err, disclosureId: row.id }, "background extraction launch failed"),
     );
     res.status(201).json(disclosureToApi(row));
+  }),
+);
+
+router.put(
+  "/cases/:caseId/disclosure/extraction",
+  h(async (req, res) => {
+    const { caseId } = UpdateCaseDisclosureExtractionParams.parse(req.params);
+    const body = UpdateCaseDisclosureExtractionBody.parse(req.body);
+    const [row] = await db
+      .select({ id: disclosuresTable.id, status: disclosuresTable.status })
+      .from(disclosuresTable)
+      .where(eq(disclosuresTable.caseId, caseId));
+    if (!row) {
+      res.status(404).json({ error: "no disclosure uploaded for this case" });
+      return;
+    }
+    // Same coercer that guards AI output guards investigator edits.
+    const extraction = coerceDisclosureExtraction(body);
+    const [updated] = await db
+      .update(disclosuresTable)
+      .set({
+        extraction: extraction as unknown,
+        correctedAt: new Date(),
+        error: null,
+      })
+      // status="ready" in the WHERE keeps this atomic against a re-read
+      // starting between our check and the write.
+      .where(and(eq(disclosuresTable.caseId, caseId), eq(disclosuresTable.status, "ready")))
+      .returning();
+    if (!updated) {
+      res.status(409).json({
+        error:
+          "corrections can only be saved on a completed reading (the AI is still reading, or the reading failed)",
+      });
+      return;
+    }
+    res.json(disclosureToApi(updated));
+  }),
+);
+
+router.post(
+  "/cases/:caseId/disclosure/reprocess",
+  h(async (req, res) => {
+    const { caseId } = ReprocessCaseDisclosureParams.parse(req.params);
+    const [row] = await db
+      .select({ id: disclosuresTable.id, status: disclosuresTable.status })
+      .from(disclosuresTable)
+      .where(eq(disclosuresTable.caseId, caseId));
+    if (!row) {
+      res.status(404).json({ error: "no disclosure uploaded for this case" });
+      return;
+    }
+    // ne(status, processing) in the WHERE makes the takeover atomic; a
+    // concurrent reprocess gets 0 rows and a 409.
+    const [updated] = await db
+      .update(disclosuresTable)
+      .set({
+        status: "processing",
+        phase: "reading_primary",
+        error: null,
+        // Fresh token per run: a zombie runner from a timed-out previous
+        // run can no longer satisfy the conditional writes.
+        runToken: randomUUID(),
+      })
+      .where(
+        and(eq(disclosuresTable.caseId, caseId), ne(disclosuresTable.status, "processing")),
+      )
+      .returning();
+    if (!updated) {
+      res.status(409).json({ error: "extraction is already running" });
+      return;
+    }
+    void runDisclosureExtraction(updated.id).catch((err) =>
+      logger.error({ err, disclosureId: updated.id }, "background re-extraction launch failed"),
+    );
+    res.status(202).json(disclosureToApi(updated));
   }),
 );
 

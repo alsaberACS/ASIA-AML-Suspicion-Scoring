@@ -11,6 +11,7 @@ import type { DisclosureDebt } from './disclosureDebt';
 import type { DisclosureDeclarant } from './disclosureDeclarant';
 import type { DisclosureExtractionDeclarationType } from './disclosureExtractionDeclarationType';
 import type { DisclosureMovable } from './disclosureMovable';
+import type { DisclosureReaders } from './disclosureReaders';
 import type { DisclosureRealEstate } from './disclosureRealEstate';
 import type { DisclosureSecurity } from './disclosureSecurity';
 import type { DisclosureUsufruct } from './disclosureUsufruct';
@@ -35,4 +36,5 @@ export interface DisclosureExtraction {
   valuableMovables: DisclosureMovable[];
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
+  readers?: DisclosureReaders | null;
 }

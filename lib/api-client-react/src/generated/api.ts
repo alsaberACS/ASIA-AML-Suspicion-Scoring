@@ -29,6 +29,7 @@ import type {
   CaseUpdate,
   DashboardSummary,
   Disclosure,
+  DisclosureExtraction,
   DisclosureUpload,
   Disposition,
   DispositionInput,
@@ -1783,5 +1784,225 @@ export const useDeleteCaseDisclosure = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteCaseDisclosureMutationOptions(options));
+    }
+
+export const getGetCaseDisclosurePdfUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure/pdf`
+}
+
+/**
+ * @summary Download the original uploaded disclosure PDF for side-by-side review
+ */
+export const getCaseDisclosurePdf = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetCaseDisclosurePdfUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCaseDisclosurePdfQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/disclosure/pdf`
+    ] as const;
+    }
+
+
+export const getGetCaseDisclosurePdfQueryOptions = <TData = Awaited<ReturnType<typeof getCaseDisclosurePdf>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosurePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCaseDisclosurePdfQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaseDisclosurePdf>>> = ({ signal }) => getCaseDisclosurePdf(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosurePdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCaseDisclosurePdfQueryResult = NonNullable<Awaited<ReturnType<typeof getCaseDisclosurePdf>>>
+export type GetCaseDisclosurePdfQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download the original uploaded disclosure PDF for side-by-side review
+ */
+
+export function useGetCaseDisclosurePdf<TData = Awaited<ReturnType<typeof getCaseDisclosurePdf>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDisclosurePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCaseDisclosurePdfQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCaseDisclosureExtractionUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure/extraction`
+}
+
+/**
+ * @summary Save investigator corrections to the extracted declaration
+ */
+export const updateCaseDisclosureExtraction = async (caseId: number,
+    disclosureExtraction: DisclosureExtraction, options?: Parameters<typeof customFetch>[1]): Promise<Disclosure> => {
+
+  return customFetch<Disclosure>(getUpdateCaseDisclosureExtractionUrl(caseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disclosureExtraction)
+  }
+);}
+
+
+
+
+
+export const getUpdateCaseDisclosureExtractionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext> => {
+
+const mutationKey = ['updateCaseDisclosureExtraction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>, {caseId: number;data: BodyType<DisclosureExtraction>}> = (props) => {
+          const {caseId,data} = props ?? {};
+
+          return  updateCaseDisclosureExtraction(caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCaseDisclosureExtractionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>>
+    export type UpdateCaseDisclosureExtractionMutationBody = BodyType<DisclosureExtraction>
+    export type UpdateCaseDisclosureExtractionMutationError = ErrorType<void>
+
+    /**
+ * @summary Save investigator corrections to the extracted declaration
+ */
+export const useUpdateCaseDisclosureExtraction = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCaseDisclosureExtraction>>,
+        TError,
+        {caseId: number;data: BodyType<DisclosureExtraction>},
+        TContext
+      > => {
+      return useMutation(getUpdateCaseDisclosureExtractionMutationOptions(options));
+    }
+
+export const getReprocessCaseDisclosureUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure/reprocess`
+}
+
+/**
+ * @summary Re-run the dual-model AI reading on the stored PDF
+ */
+export const reprocessCaseDisclosure = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<Disclosure> => {
+
+  return customFetch<Disclosure>(getReprocessCaseDisclosureUrl(caseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReprocessCaseDisclosureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reprocessCaseDisclosure>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reprocessCaseDisclosure>>, TError,{caseId: number}, TContext> => {
+
+const mutationKey = ['reprocessCaseDisclosure'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reprocessCaseDisclosure>>, {caseId: number}> = (props) => {
+          const {caseId} = props ?? {};
+
+          return  reprocessCaseDisclosure(caseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReprocessCaseDisclosureMutationResult = NonNullable<Awaited<ReturnType<typeof reprocessCaseDisclosure>>>
+
+    export type ReprocessCaseDisclosureMutationError = ErrorType<void>
+
+    /**
+ * @summary Re-run the dual-model AI reading on the stored PDF
+ */
+export const useReprocessCaseDisclosure = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reprocessCaseDisclosure>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reprocessCaseDisclosure>>,
+        TError,
+        {caseId: number},
+        TContext
+      > => {
+      return useMutation(getReprocessCaseDisclosureMutationOptions(options));
     }
 

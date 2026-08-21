@@ -218,9 +218,11 @@ export function disclosureToApi(row: DisclosureRow) {
     filename: row.filename,
     fileSizeBytes: row.fileSizeBytes,
     status: row.status as "processing" | "ready" | "failed",
+    phase: row.phase,
     error: row.error,
     extraction: (row.extraction ?? null) as never,
     uploadedAt: iso(row.uploadedAt)!,
     extractedAt: iso(row.extractedAt),
+    correctedAt: iso(row.correctedAt),
   };
 }

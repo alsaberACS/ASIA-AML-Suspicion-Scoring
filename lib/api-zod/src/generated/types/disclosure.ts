@@ -20,4 +20,8 @@ export interface Disclosure {
   uploadedAt: string;
   /** @nullable */
   extractedAt?: string | null;
+  /** @nullable */
+  phase?: string | null;
+  /** @nullable */
+  correctedAt?: string | null;
 }

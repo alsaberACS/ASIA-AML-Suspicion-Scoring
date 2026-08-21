@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import CaseList from '@/pages/cases/CaseList';
 import CaseWorkspace from '@/pages/cases/CaseWorkspace';
+import CaseDisclosureWorkbench from '@/pages/cases/CaseDisclosureWorkbench';
 import Landing from '@/pages/Landing';
 import { isUnlocked } from '@/lib/access';
 
@@ -21,6 +22,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/cases" component={CaseList} />
+          <Route path="/cases/:id/disclosure" component={CaseDisclosureWorkbench} />
           <Route path="/cases/:id" component={CaseWorkspace} />
           <Route component={NotFound} />
         </Switch>

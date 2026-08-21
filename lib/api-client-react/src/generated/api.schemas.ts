@@ -901,6 +901,11 @@ export interface DisclosureDeclarant {
   email?: string | null;
   /** @nullable */
   monthlySalaryKwd?: number | null;
+  /** @nullable */
+  page?: number | null;
+  uncertainFields?: string[];
+  correctedFields?: string[];
+  alternates?: string[];
 }
 
 export interface DisclosureChild {
@@ -916,6 +921,12 @@ export interface DisclosureChild {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureRealEstate {
@@ -931,6 +942,12 @@ export interface DisclosureRealEstate {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureUsufruct {
@@ -944,6 +961,12 @@ export interface DisclosureUsufruct {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureSecurity {
@@ -961,6 +984,12 @@ export interface DisclosureSecurity {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureAccount {
@@ -976,6 +1005,12 @@ export interface DisclosureAccount {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureDebt {
@@ -991,6 +1026,12 @@ export interface DisclosureDebt {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export interface DisclosureMovable {
@@ -1004,6 +1045,12 @@ export interface DisclosureMovable {
   /** @nullable */
   notes?: string | null;
   uncertain?: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates?: string[];
+  corrected?: boolean;
 }
 
 export type DisclosureExtractionDeclarationType = typeof DisclosureExtractionDeclarationType[keyof typeof DisclosureExtractionDeclarationType];
@@ -1015,6 +1062,13 @@ export const DisclosureExtractionDeclarationType = {
   final: 'final',
   unknown: 'unknown',
 } as const;
+
+export interface DisclosureReaders {
+  primary: string;
+  /** @nullable */
+  secondary?: string | null;
+  adjudicated: boolean;
+}
 
 export interface DisclosureExtraction {
   declarationType: DisclosureExtractionDeclarationType;
@@ -1036,6 +1090,7 @@ export interface DisclosureExtraction {
   valuableMovables: DisclosureMovable[];
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
+  readers?: DisclosureReaders | null;
 }
 
 export type DisclosureStatus = typeof DisclosureStatus[keyof typeof DisclosureStatus];
@@ -1059,6 +1114,10 @@ export interface Disclosure {
   uploadedAt: string;
   /** @nullable */
   extractedAt?: string | null;
+  /** @nullable */
+  phase?: string | null;
+  /** @nullable */
+  correctedAt?: string | null;
 }
 
 export type DispositionInputDecision = typeof DispositionInputDecision[keyof typeof DispositionInputDecision];
