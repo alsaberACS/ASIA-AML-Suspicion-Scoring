@@ -382,3 +382,35 @@
     animation: landing-scan 7s linear infinite;
   }
 }
+
+/* Disclosure workbench: field-provenance flash. Focusing an extracted field
+   outlines the PDF page it was read from (page-level: the source form is
+   scanned, so readers record pages, not coordinates). Under reduced motion
+   the overlay is shown statically and simply disappears when dismissed. */
+@keyframes source-reveal-flash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.source-reveal-flash {
+  pointer-events: none;
+  border: 2px solid hsl(var(--primary));
+  box-shadow:
+    0 0 22px 2px hsl(var(--primary) / 0.45),
+    inset 0 0 46px hsl(var(--primary) / 0.18);
+  opacity: 1;
+}
+@keyframes source-reveal-chip {
+  0% { opacity: 0; transform: translateY(-2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .source-reveal-flash {
+    opacity: 0;
+    animation: source-reveal-flash 2s ease-in-out forwards;
+  }
+  .source-reveal-chip {
+    animation: source-reveal-chip 0.25s ease-out;
+  }
+}

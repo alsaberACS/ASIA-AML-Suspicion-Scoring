@@ -46,6 +46,15 @@ export default function CaseDisclosureWorkbench() {
   const [numPages, setNumPages] = useState<number>();
   const [pageNumber, setPageNumber] = useState<number>(1);
 
+  // Field-provenance reveal: focusing an extracted field jumps the PDF to the
+  // page the readers took it from and flashes a page-level highlight (the form
+  // is scanned - readers record source pages, not coordinates). 'document'
+  // marks synthesized fields such as the summary, which have no single spot.
+  const [sourceReveal, setSourceReveal] = useState<
+    { kind: 'page'; page: number; seq: number } | { kind: 'document'; seq: number } | null
+  >(null);
+  const revealSeq = useRef(0);
+
   // Draft State. Keyed on caseId + extractedAt: a fresh AI read (new
   // extractedAt) rebuilds the draft, and a running re-read clears it so a
   // stale draft can never be saved over the incoming reading.
@@ -69,6 +78,13 @@ export default function CaseDisclosureWorkbench() {
       setDraft(JSON.parse(JSON.stringify(disclosure.extraction)));
     }
   }, [disclosure, draftKey]);
+
+  // Auto-dismiss the provenance highlight after the flash has played out.
+  useEffect(() => {
+    if (!sourceReveal) return;
+    const t = window.setTimeout(() => setSourceReveal(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [sourceReveal]);
 
   if (isLoading) {
     return <div className="h-[100dvh] flex items-center justify-center font-mono text-primary animate-pulse bg-background">Initializing Workbench...</div>;
@@ -129,10 +145,22 @@ export default function CaseDisclosureWorkbench() {
     }
   };
 
-  const handlePageJump = (p?: number | null) => {
-    if (p && p >= 1 && p <= (numPages || 1)) {
-      setPageNumber(p);
-    }
+  const revealSource = (page?: number | null) => {
+    if (!page || page < 1 || (numPages ? page > numPages : false)) return;
+    setPageNumber(page);
+    // Same source already on display: keep the running flash and its timer
+    // instead of restarting, so tabbing across a row's fields stays calm.
+    setSourceReveal(prev =>
+      prev && prev.kind === 'page' && prev.page === page
+        ? prev
+        : { kind: 'page', page, seq: ++revealSeq.current }
+    );
+  };
+
+  const revealDocumentSource = () => {
+    setSourceReveal(prev =>
+      prev && prev.kind === 'document' ? prev : { kind: 'document', seq: ++revealSeq.current }
+    );
   };
 
   // Updaters
@@ -214,7 +242,7 @@ export default function CaseDisclosureWorkbench() {
     if (!page) return null;
     return (
       <button 
-        onClick={() => handlePageJump(page)}
+        onClick={() => revealSource(page)}
         className="text-[9px] h-4 px-1.5 rounded-sm bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary transition-colors uppercase tracking-widest font-mono border border-border"
         data-testid="chip-page"
       >
@@ -298,7 +326,18 @@ export default function CaseDisclosureWorkbench() {
         {/* Left: PDF Viewer */}
         <div className="w-1/2 border-r border-border bg-[#0a0a0a] flex flex-col relative" data-testid="pdf-viewer-container">
           <div className="h-10 bg-card/80 border-b border-border flex items-center justify-between px-3 shrink-0">
-            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Original Document</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Original Document</span>
+              {sourceReveal && (
+                <span
+                  key={sourceReveal.seq}
+                  data-testid="chip-source-indicator"
+                  className="source-reveal-chip font-mono text-[9px] uppercase tracking-widest text-primary bg-primary/10 border border-primary/40 rounded-sm px-1.5 py-0.5 whitespace-nowrap"
+                >
+                  {sourceReveal.kind === 'page' ? `Source: Pg ${sourceReveal.page}` : 'Source: Entire document'}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
                 <ChevronLeft className="h-4 w-4" />
@@ -313,9 +352,18 @@ export default function CaseDisclosureWorkbench() {
           </div>
           <ScrollArea className="flex-1">
             <div className="p-4 flex justify-center w-full">
-              <Document
+              <div className="relative">
+                <Document
                 file={`${import.meta.env.BASE_URL}api/cases/${caseId}/disclosure/pdf`}
-                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                onLoadSuccess={({ numPages }) => {
+                  setNumPages(numPages);
+                  // A provenance jump may have landed before the page count was
+                  // known; clamp so <Page> never receives an out-of-range page.
+                  setPageNumber(p => Math.min(Math.max(1, p), numPages));
+                  setSourceReveal(prev =>
+                    prev && prev.kind === 'page' && prev.page > numPages ? null : prev
+                  );
+                }}
                 loading={<div className="font-mono text-sm text-primary animate-pulse py-20">Loading Document...</div>}
                 error={<div className="font-mono text-sm text-destructive py-20">Failed to load Document</div>}
               >
@@ -326,7 +374,16 @@ export default function CaseDisclosureWorkbench() {
                   scale={1.2}
                   className="shadow-2xl border border-border"
                 />
-              </Document>
+                </Document>
+                {sourceReveal?.kind === 'page' && (
+                  <div
+                    key={sourceReveal.seq}
+                    aria-hidden
+                    data-testid="overlay-source-flash"
+                    className="source-reveal-flash absolute inset-0 z-10 rounded-sm"
+                  />
+                )}
+              </div>
             </div>
           </ScrollArea>
         </div>
@@ -385,6 +442,7 @@ export default function CaseDisclosureWorkbench() {
                       <select 
                         value={draft.declarationType} 
                         onChange={e => updateRoot('declarationType', e.target.value)}
+                        onFocus={revealDocumentSource}
                         className="w-full bg-input border border-border rounded-sm h-8 text-xs font-mono px-2 outline-none focus:ring-1 focus:ring-primary"
                       >
                         <option value="first">First</option>
@@ -398,6 +456,7 @@ export default function CaseDisclosureWorkbench() {
                       <Input 
                         value={draft.declarationDate || ''} 
                         onChange={e => updateRoot('declarationDate', e.target.value)}
+                        onFocus={revealDocumentSource}
                         className="h-8 text-xs font-mono rounded-sm"
                       />
                     </div>
@@ -408,6 +467,7 @@ export default function CaseDisclosureWorkbench() {
                     <Textarea 
                       value={draft.summaryEn || ''} 
                       onChange={e => updateRoot('summaryEn', e.target.value)}
+                      onFocus={revealDocumentSource}
                       className="min-h-[60px] text-xs font-mono rounded-sm"
                     />
                   </div>
@@ -416,6 +476,7 @@ export default function CaseDisclosureWorkbench() {
                     <Textarea 
                       value={draft.generalNotes || ''} 
                       onChange={e => updateRoot('generalNotes', e.target.value)}
+                      onFocus={revealDocumentSource}
                       className="min-h-[60px] text-xs font-mono rounded-sm"
                     />
                   </div>
@@ -444,6 +505,7 @@ export default function CaseDisclosureWorkbench() {
                             <Input 
                               value={val} 
                               onChange={e => updateDeclarant(field as keyof DisclosureDeclarant, e.target.value)}
+                              onFocus={() => revealSource(draft.declarant?.page)}
                               className={`h-8 text-xs font-mono rounded-sm ${isUncertain ? 'border-amber-500/50 bg-amber-500/5' : isCorrected ? 'border-emerald-500/50' : ''}`}
                             />
                             {renderAlternates(alternates)}
@@ -460,7 +522,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="minorChildren" 
                   draft={draft} 
                   fields={[{key:'name', label:'Name'}, {key:'dateOfBirth', label:'DOB'}, {key:'relation', label:'Relation'}, {key:'idType', label:'ID Type'}, {key:'idNumber', label:'ID Num'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ name: '', dateOfBirth: '', relation: '', idType: '', idNumber: '', notes: '' }}
                 />
@@ -470,7 +532,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="realEstate" 
                   draft={draft} 
                   fields={[{key:'location', label:'Location'}, {key:'ownerName', label:'Owner'}, {key:'propertyType', label:'Type'}, {key:'areaSqm', label:'Area (sqm)'}, {key:'ownershipPct', label:'Ownership %'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ location: '', ownerName: '', propertyType: '', areaSqm: null, ownershipPct: null, notes: '' }}
                 />
@@ -480,7 +542,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="usufructRights" 
                   draft={draft} 
                   fields={[{key:'location', label:'Location'}, {key:'beneficiaryName', label:'Beneficiary'}, {key:'usageType', label:'Type'}, {key:'areaSqm', label:'Area (sqm)'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ location: '', beneficiaryName: '', usageType: '', areaSqm: null, notes: '' }}
                 />
@@ -490,7 +552,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="securities" 
                   draft={draft} 
                   fields={[{key:'company', label:'Company'}, {key:'companyCountry', label:'Country'}, {key:'ownerName', label:'Owner'}, {key:'instrumentType', label:'Type'}, {key:'quantityOrPct', label:'Quantity/%'}, {key:'listed', label:'Listed'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ company: '', companyCountry: '', ownerName: '', instrumentType: '', quantityOrPct: '', listed: false, notes: '' }}
                 />
@@ -500,7 +562,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="bankAccountsAndDeposits" 
                   draft={draft} 
                   fields={[{key:'institution', label:'Institution'}, {key:'institutionCountry', label:'Country'}, {key:'ownerName', label:'Owner'}, {key:'kind', label:'Kind'}, {key:'valueKwd', label:'Value (KWD)'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ institution: '', institutionCountry: '', ownerName: '', kind: '', valueKwd: null, notes: '' }}
                 />
@@ -510,7 +572,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="debtsOwed" 
                   draft={draft} 
                   fields={[{key:'creditor', label:'Creditor'}, {key:'creditorCountry', label:'Country'}, {key:'debtorName', label:'Debtor'}, {key:'amountKwd', label:'Amount (KWD)'}, {key:'finalRepaymentDate', label:'Repayment Date'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ creditor: '', creditorCountry: '', debtorName: '', amountKwd: null, finalRepaymentDate: '', notes: '' }}
                 />
@@ -520,7 +582,7 @@ export default function CaseDisclosureWorkbench() {
                   sectionKey="valuableMovables" 
                   draft={draft} 
                   fields={[{key:'description', label:'Description'}, {key:'ownerName', label:'Owner'}, {key:'count', label:'Count'}, {key:'totalValueKwd', label:'Total Value (KWD)'}, {key:'notes', label:'Notes'}]}
-                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow}
+                  onUpdate={updateRow} onAdd={addRow} onDelete={deleteRow} onRevealSource={revealSource}
                   renderAlternates={renderAlternates} renderAsWritten={renderAsWritten} renderPageChip={renderPageChip} renderStatusBadge={renderStatusBadge}
                   defaultRow={{ description: '', ownerName: '', count: null, totalValueKwd: null, notes: '' }}
                 />
@@ -573,6 +635,7 @@ function SectionEditor({
   onUpdate, 
   onAdd, 
   onDelete,
+  onRevealSource,
   renderAlternates,
   renderAsWritten,
   renderPageChip,
@@ -616,6 +679,7 @@ function SectionEditor({
                       <select 
                         value={row[f.key] ? 'true' : 'false'} 
                         onChange={e => onUpdate(sectionKey, i, f.key, e.target.value === 'true')}
+                        onFocus={() => onRevealSource(row.page)}
                         className={`w-full bg-input border rounded-sm h-8 text-xs font-mono px-2 outline-none focus:ring-1 focus:ring-primary ${row.uncertain ? 'border-amber-500/50 bg-amber-500/5' : row.corrected ? 'border-emerald-500/50' : 'border-border'}`}
                       >
                         <option value="false">No</option>
@@ -629,6 +693,7 @@ function SectionEditor({
                           const isNumeric = ['areaSqm', 'ownershipPct', 'valueKwd', 'amountKwd', 'count', 'totalValueKwd'].includes(f.key);
                           onUpdate(sectionKey, i, f.key, isNumeric ? (val === '' ? null : Number(val)) : val);
                         }}
+                        onFocus={() => onRevealSource(row.page)}
                         className={`h-8 text-xs font-mono rounded-sm ${row.uncertain ? 'border-amber-500/50 bg-amber-500/5' : row.corrected ? 'border-emerald-500/50' : ''}`}
                       />
                     )}
