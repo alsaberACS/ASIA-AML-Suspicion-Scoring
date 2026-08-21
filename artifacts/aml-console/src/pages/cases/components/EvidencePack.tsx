@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   useGetLatestAnalysis, 
   useGetAnalysisRun,
@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Legend, ComposedChart, Line
@@ -955,6 +956,13 @@ function AiAnalystView({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTx
   );
 }
 
+const SEVERITY_CHIP: Record<string, string> = {
+  critical: 'border-destructive text-destructive',
+  high: 'border-destructive/60 text-destructive',
+  medium: 'border-amber-500/50 text-amber-500',
+  low: 'border-muted-foreground/40 text-muted-foreground',
+};
+
 function TransactionsView({ caseId, run, initialTxnIds, onClearFilter }: { caseId: number, run: AnalysisRun, initialTxnIds?: string, onClearFilter: () => void }) {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(50);
@@ -981,6 +989,12 @@ function TransactionsView({ caseId, run, initialTxnIds, onClearFilter }: { caseI
     flaggedOnly: flaggedOnly || undefined,
     txnIds: txnIds || undefined
   });
+
+  // Rule metadata for click-to-explain flag chips, keyed by rule ID.
+  const ruleById = useMemo(
+    () => new Map(run.ruleHits.map(h => [h.ruleId, h])),
+    [run.ruleHits]
+  );
 
   const clearAllFilters = () => {
     setBank('');
@@ -1105,16 +1119,68 @@ function TransactionsView({ caseId, run, initialTxnIds, onClearFilter }: { caseI
                   </TableCell>
                   <TableCell className="text-right">
                     {txn.isInternalTransfer ? (
-                      <Badge variant="outline" className="font-mono text-[9px] uppercase px-1.5 py-0 rounded-sm border-primary/50 text-primary">
-                        Internal
-                      </Badge>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button" className="cursor-pointer" data-testid={`flag-internal-${txn.id}`}>
+                            <Badge variant="outline" className="font-mono text-[9px] uppercase px-1.5 py-0 rounded-sm border-primary/50 text-primary hover:bg-primary/10 transition-colors">
+                              Internal
+                            </Badge>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-80">
+                          <div className="font-mono text-[10px] uppercase tracking-wider text-primary mb-1.5">Own-Account Transfer</div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            The engine matched this transaction with its opposite leg at another of the subject's own accounts as two sides of one internal transfer. Money moving between the subject's own accounts is not external income or spending, so it is netted out of the flow totals and never counts as evidence of suspicion.
+                          </p>
+                        </PopoverContent>
+                      </Popover>
                     ) : txn.flags.length > 0 ? (
                       <div className="flex flex-wrap justify-end gap-1">
-                        {txn.flags.map(f => (
-                          <span key={f} className="text-[9px] font-mono bg-destructive/10 text-destructive border border-destructive/20 px-1 rounded-sm" title={f}>
-                            {f.split('-')[0]}
-                          </span>
-                        ))}
+                        {txn.flags.map(f => {
+                          const hit = ruleById.get(f);
+                          return (
+                            <Popover key={f}>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flag-pulse text-[9px] font-mono bg-destructive/10 text-destructive border border-destructive/20 px-1 rounded-sm cursor-pointer hover:bg-destructive/20 transition-colors"
+                                  data-testid={`flag-${f}-${txn.id}`}
+                                >
+                                  {f.replace(/^R-/, '')}
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-96">
+                                {hit ? (
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-mono text-[10px] text-muted-foreground">{hit.ruleId}</span>
+                                      <Badge variant="outline" className={`font-mono text-[9px] uppercase px-1.5 py-0 rounded-sm ${SEVERITY_CHIP[hit.severity] ?? SEVERITY_CHIP.low}`}>
+                                        {hit.severity}
+                                      </Badge>
+                                    </div>
+                                    <div className="text-sm font-medium leading-snug">{hit.title}</div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">{hit.description}</p>
+                                    {hit.detail && (
+                                      <div className="border border-border/60 bg-muted/30 rounded-sm p-2">
+                                        <div className="font-mono text-[9px] uppercase tracking-wider text-primary mb-1">In this case</div>
+                                        <p className="text-xs leading-relaxed">{hit.detail}</p>
+                                      </div>
+                                    )}
+                                    {hit.citation && (
+                                      <p className="text-[10px] text-muted-foreground/70 leading-relaxed border-t border-border/50 pt-1.5">
+                                        Reference: {hit.citation}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Rule {f} fired on this transaction in this analysis run. Full details are in the Red Flags tab.
+                                  </p>
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          );
+                        })}
                       </div>
                     ) : null}
                   </TableCell>

@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, User, Briefcase, Building2, MapPin, AlignLeft, Hash } from 'lucide-react';
+import { Pencil, User, Briefcase, Building2, MapPin, AlignLeft, Hash, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLocation } from 'wouter';
 
 export default function CaseHeader({ caseData }: { caseData: Case }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [, navigate] = useLocation();
   const updateCase = useUpdateCase();
   
   const [formData, setFormData] = useState({
@@ -77,6 +79,17 @@ export default function CaseHeader({ caseData }: { caseData: Case }) {
         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
           <div className="flex-1 space-y-4">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/cases')}
+                aria-label="Back to cases"
+                title="Back to cases"
+                data-testid="button-back-to-cases"
+                className="h-12 w-10 shrink-0 rounded-sm border border-border text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/10 transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
               <div className="h-12 w-12 rounded bg-primary/10 border border-primary/20 flex items-center justify-center">
                 <User className="h-6 w-6 text-primary" />
               </div>

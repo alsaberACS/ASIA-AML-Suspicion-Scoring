@@ -23,6 +23,6 @@ bridging) key on resolved identity clusters, never on raw uppercase strings.
   subject's name) are nulled at ingestion so they cannot pose as identified
   senders. Suppression happens in ingestFile, not parseWorkbook.
 - Deterministic-score isolation still holds: identity changes shift FEATURE
-  inputs and TECH findings, not rule logic. FAHAD re-ingest changed findings
+  inputs and TECH findings, not rule logic. the demo subject re-ingest changed findings
   (NET-02 appeared, NET-01 high->medium, bridging ungated) while probability
   stayed 0.4609 exactly.

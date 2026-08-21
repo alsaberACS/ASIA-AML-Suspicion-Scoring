@@ -220,3 +220,136 @@
     inset: -1px;
   }
 }
+/* ---------------------------------------------------------------------------
+   Color themes. The default (Cyan Command) lives in :root above; each block
+   below overrides the palette when <html data-theme="..."> is set (see
+   src/lib/theme.ts). Destructive red is intentionally identical everywhere:
+   it carries AML semantics (flags, critical severity) and must not restyle.
+   --------------------------------------------------------------------------- */
+
+:root[data-theme='emerald'] {
+  --background: 170 35% 6%;
+  --border: 168 32% 14%;
+  --card: 170 33% 9%;
+  --card-border: 168 32% 14%;
+  --sidebar: 170 34% 8%;
+  --sidebar-border: 168 32% 14%;
+  --sidebar-primary: 152 76% 46%;
+  --sidebar-primary-foreground: 170 40% 8%;
+  --sidebar-accent: 168 32% 14%;
+  --sidebar-ring: 152 76% 46%;
+  --popover: 170 33% 9%;
+  --popover-border: 168 32% 14%;
+  --primary: 152 76% 46%;
+  --primary-foreground: 170 40% 8%;
+  --secondary: 160 45% 13%;
+  --secondary-foreground: 152 70% 55%;
+  --muted: 168 30% 14%;
+  --muted-foreground: 160 20% 66%;
+  --accent: 168 30% 18%;
+  --input: 168 30% 17%;
+  --ring: 152 76% 46%;
+  --chart-1: 152 76% 46%;
+  --chart-2: 175 70% 45%;
+  --chart-3: 200 70% 50%;
+}
+
+:root[data-theme='amber'] {
+  --background: 28 16% 7%;
+  --border: 30 14% 15%;
+  --card: 28 15% 10%;
+  --card-border: 30 14% 15%;
+  --sidebar: 28 15% 8%;
+  --sidebar-border: 30 14% 15%;
+  --sidebar-primary: 38 95% 54%;
+  --sidebar-primary-foreground: 28 35% 8%;
+  --sidebar-accent: 30 14% 15%;
+  --sidebar-ring: 38 95% 54%;
+  --popover: 28 15% 10%;
+  --popover-border: 30 14% 15%;
+  --primary: 38 95% 54%;
+  --primary-foreground: 28 40% 8%;
+  --secondary: 34 45% 14%;
+  --secondary-foreground: 40 90% 60%;
+  --muted: 30 14% 15%;
+  --muted-foreground: 35 15% 66%;
+  --accent: 30 14% 19%;
+  --input: 30 14% 17%;
+  --ring: 38 95% 54%;
+  --chart-1: 38 95% 54%;
+  --chart-2: 20 85% 55%;
+  --chart-3: 45 80% 50%;
+}
+
+:root[data-theme='violet'] {
+  --background: 252 32% 7%;
+  --border: 252 28% 16%;
+  --card: 252 30% 10%;
+  --card-border: 252 28% 16%;
+  --sidebar: 252 31% 9%;
+  --sidebar-border: 252 28% 16%;
+  --sidebar-primary: 262 85% 66%;
+  --sidebar-primary-foreground: 252 40% 10%;
+  --sidebar-accent: 252 28% 16%;
+  --sidebar-ring: 262 85% 66%;
+  --popover: 252 30% 10%;
+  --popover-border: 252 28% 16%;
+  --primary: 262 85% 66%;
+  --primary-foreground: 252 45% 10%;
+  --secondary: 258 40% 16%;
+  --secondary-foreground: 265 80% 75%;
+  --muted: 252 28% 16%;
+  --muted-foreground: 255 20% 68%;
+  --accent: 252 28% 21%;
+  --input: 252 28% 19%;
+  --ring: 262 85% 66%;
+  --chart-1: 262 85% 66%;
+  --chart-2: 290 70% 60%;
+  --chart-3: 220 80% 62%;
+}
+
+:root[data-theme='ice'] {
+  --background: 215 40% 7%;
+  --border: 214 34% 15%;
+  --card: 215 38% 10%;
+  --card-border: 214 34% 15%;
+  --sidebar: 215 39% 8%;
+  --sidebar-border: 214 34% 15%;
+  --sidebar-primary: 205 90% 62%;
+  --sidebar-primary-foreground: 215 45% 10%;
+  --sidebar-accent: 214 34% 15%;
+  --sidebar-ring: 205 90% 62%;
+  --popover: 215 38% 10%;
+  --popover-border: 214 34% 15%;
+  --primary: 205 90% 62%;
+  --primary-foreground: 215 50% 10%;
+  --secondary: 208 45% 15%;
+  --secondary-foreground: 203 85% 70%;
+  --muted: 214 32% 15%;
+  --muted-foreground: 212 25% 68%;
+  --accent: 214 32% 20%;
+  --input: 214 32% 18%;
+  --ring: 205 90% 62%;
+  --chart-1: 205 90% 62%;
+  --chart-2: 190 80% 55%;
+  --chart-3: 230 70% 62%;
+}
+
+/* Soft attention pulse for transaction flag chips (EvidencePack). Uses
+   currentColor so the glow follows the chip's severity/destructive color
+   in every theme. Disabled for users who prefer reduced motion. */
+@keyframes flag-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    opacity: 0.65;
+    box-shadow: 0 0 8px -1px currentColor;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .flag-pulse {
+    animation: flag-pulse 2.4s ease-in-out infinite;
+  }
+}

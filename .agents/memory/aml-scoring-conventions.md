@@ -8,7 +8,7 @@ description: Decisions in the Bayesian aggregation layer that future tuning must
 - **Residual feature evidence** (elevated/critical features not covered by a fired rule) is capped as a bundle; candidates must be admitted strongest-first (critical before elevated) or the cap can crowd out the most probative signal.
 - **Data-quality shrinkage scales evidence, and that is the product story:** a tampered ledger (balance breaks) visibly suppresses the score — the demo's Burgan file does this by design.
 - **The LLM never states or adjusts probability.** It narrates typologies, produces benign scenarios/objections, and drafts the memo citing txn ids. Probability comes only from M2.
-- Demo landing point: subject FAHAD scores ≈0.46 (top of Elevated) with five rules fired and −0.5 DQ suppression; Elevated rather than High is intentional given the corrupted Burgan ledger.
+- Demo landing point: subject the demo subject scores ≈0.46 (top of Elevated) with five rules fired and −0.5 DQ suppression; Elevated rather than High is intentional given the corrupted Burgan ledger.
 
 ## Investigation-forensics evidence constraints
 

@@ -6,14 +6,23 @@ import {
   Settings,
   Bell,
   Search,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ReactNode } from 'react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ReactNode, useState } from 'react';
+import { THEMES, applyTheme, getSavedTheme, type ThemeId } from '@/lib/theme';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const [theme, setTheme] = useState<ThemeId>(getSavedTheme);
+
+  const handleThemeChange = (id: ThemeId) => {
+    applyTheme(id);
+    setTheme(id);
+  };
 
   const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -89,9 +98,61 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <Button variant="ghost" size="icon" className="text-muted-foreground rounded-sm">
               <Bell className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-muted-foreground rounded-sm">
-              <Settings className="h-4 w-4" />
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground rounded-sm"
+                  aria-label="Settings"
+                  data-testid="button-settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-3">
+                <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+                  Settings
+                </div>
+                <div className="text-sm font-medium mb-3">Color theme</div>
+                <div className="space-y-1.5">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleThemeChange(t.id)}
+                      aria-pressed={theme === t.id}
+                      data-testid={`theme-${t.id}`}
+                      className={`w-full flex items-center gap-3 p-2 rounded-sm border text-left transition-colors ${
+                        theme === t.id
+                          ? 'border-primary/50 bg-primary/10'
+                          : 'border-transparent hover:border-border hover:bg-muted/40'
+                      }`}
+                    >
+                      <span className="flex shrink-0 -space-x-1.5">
+                        {t.swatches.map((c, i) => (
+                          <span
+                            key={i}
+                            className="h-4 w-4 rounded-full border border-white/15"
+                            style={{ backgroundColor: c, zIndex: 3 - i }}
+                          />
+                        ))}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-xs font-medium">{t.label}</span>
+                        <span className="block text-[10px] text-muted-foreground truncate">
+                          {t.tagline}
+                        </span>
+                      </span>
+                      {theme === t.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
+                  Applies instantly and is remembered on this device.
+                </p>
+              </PopoverContent>
+            </Popover>
           </div>
         </header>
 
