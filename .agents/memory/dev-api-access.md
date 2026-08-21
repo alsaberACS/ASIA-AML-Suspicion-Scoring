@@ -19,3 +19,6 @@ description: How to reach the api-server from the shell in development - the sha
 - Re-ingesting case 2 works from `attached_assets/بنك_*_1787248148376.xlsx`;
   bank label mapping: واحد=Boubyan, اثنين=Commercial Bank of Kuwait,
   ثلاثة=Gulf Bank, اربعة=Burgan Bank, خمسة=National Bank of Kuwait.
+
+## The api-server dev workflow does NOT hot-reload
+The dev workflow bundles with esbuild then runs the bundle (build + start, no watcher): after editing server code (e.g. the PDF renderer), restart the workflow before curling endpoints, or you silently test stale code. Symptom: an edit appears to have no effect on generated output.

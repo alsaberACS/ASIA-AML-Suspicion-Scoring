@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { desc, eq } from "drizzle-orm";
-import { db, analysisRunsTable, casesTable, dispositionsTable } from "@workspace/db";
+import { desc, eq, sql } from "drizzle-orm";
+import { db, analysisRunsTable, casesTable, dispositionsTable, transactionsTable } from "@workspace/db";
 import {
   AnalyzeCaseParams,
   CreateDispositionBody,
@@ -128,6 +128,29 @@ router.get(
       .from(casesTable)
       .where(eq(casesTable.id, run.caseId));
     const caseRow = caseRows[0];
+    // Monthly flow aggregation for the report's behavioural timeline figure,
+    // done in SQL so large cases never stream full rows into the server.
+    const monthExpr = sql<string>`to_char(${transactionsTable.postingDate}, 'YYYY-MM')`;
+    const flowRows = await db
+      .select({
+        month: monthExpr,
+        creditsKwd: sql<number>`coalesce(sum(case when ${transactionsTable.direction} = 'credit' then ${transactionsTable.amountKwd} else 0 end), 0)::float`,
+        debitsKwd: sql<number>`coalesce(sum(case when ${transactionsTable.direction} = 'debit' then ${transactionsTable.amountKwd} else 0 end), 0)::float`,
+        cashInKwd: sql<number>`coalesce(sum(case when ${transactionsTable.direction} = 'credit' and ${transactionsTable.channel} = 'cash_deposit' then ${transactionsTable.amountKwd} else 0 end), 0)::float`,
+        cashOutKwd: sql<number>`coalesce(sum(case when ${transactionsTable.direction} = 'debit' and ${transactionsTable.channel} = 'cash_withdrawal' then ${transactionsTable.amountKwd} else 0 end), 0)::float`,
+        txnCount: sql<number>`count(*)::int`,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.caseId, run.caseId))
+      .groupBy(monthExpr)
+      .orderBy(monthExpr);
+    // Truthfulness guard: every other number in the report is this run's
+    // frozen snapshot. The timeline may only be drawn from the live ledger if
+    // that ledger is still exactly the one this run analyzed; if statements
+    // were added or re-ingested since, omit the timeline section rather than
+    // print figures that contradict the snapshot.
+    const ledgerTxnCount = flowRows.reduce((s, r) => s + r.txnCount, 0);
+    const monthlyFlows = ledgerTxnCount === run.txnCount ? flowRows : [];
     const pdf = await renderAnalysisReport(
       runToApi(run, disp[0] ?? null),
       caseRow
@@ -143,6 +166,7 @@ router.get(
             declaredBusinessActivity: caseRow.declaredBusinessActivity,
           }
         : null,
+      monthlyFlows,
     );
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(

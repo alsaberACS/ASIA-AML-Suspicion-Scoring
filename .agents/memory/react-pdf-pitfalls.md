@@ -18,3 +18,8 @@ description: Crash and rendering quirks when generating PDFs with @react-pdf/ren
 ## Debugging recipe that worked
 - Bisect by DATA, not code: clone the API run payload and empty one section at a time, rendering directly via an esbuild-bundled harness (`--packages=external`, bundle inside the package so node_modules resolves). Leave-one-out isolates the section; a temporary guard log injected into @react-pdf/render's clip function fingerprints the crashing node via its border widths/padding (revert after).
 - Bordered+rounded content cards should be `wrap={false}` anyway; long boxes that must split across pages (case memo) should not have borderRadius.
+
+## Unitless lineHeight requires an explicit fontSize in the SAME style object
+Rule: any Text style that sets a unitless `lineHeight` must also declare `fontSize` in that same style object.
+**Why:** @react-pdf resolves the unitless multiplier against the DEFAULT font size (18pt), not the inherited one. A style like `{ lineHeight: 1.5 }` on 9pt inherited text renders near-double-spaced (27pt leading). Styles with `fontSize` alongside render correctly, which makes the bug look intermittent across components.
+**How to apply:** when paragraphs look mysteriously double-spaced in a rendered PDF, check for lineHeight-without-fontSize before suspecting anything else.
