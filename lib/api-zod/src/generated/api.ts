@@ -1549,17 +1549,23 @@ export const GetCaseNetworkResponse = zod.object({
   "id": zod.string(),
   "label": zod.string(),
   "type": zod.enum(['subject_account', 'counterparty']),
+  "kind": zod.union([zod.literal('account'),zod.literal('cash'),zod.literal('name'),zod.literal('account_ref'),zod.literal('instapay_ref'),zod.literal(null)]).nullish(),
+  "accountTail": zod.string().nullish(),
   "bank": zod.string().nullish(),
   "country": zod.string().nullish(),
   "totalInKwd": zod.number(),
   "totalOutKwd": zod.number(),
-  "txnCount": zod.int()
+  "txnCount": zod.int(),
+  "flaggedCount": zod.int().optional(),
+  "flagIds": zod.array(zod.string()).optional()
 })),
   "edges": zod.array(zod.object({
   "source": zod.string(),
   "target": zod.string(),
   "valueKwd": zod.number(),
-  "txnCount": zod.int()
+  "txnCount": zod.int(),
+  "kind": zod.enum(['flow', 'internal']).optional(),
+  "flaggedCount": zod.int().optional()
 }))
 })
 

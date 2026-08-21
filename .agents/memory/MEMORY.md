@@ -14,3 +14,4 @@
 - [Disclosure locator](disclosure-locator.md) — sideways scans: models flip row boxes to reading frame; repair via model-reported page rotation; salvage+retry flaky JSON; verify by overlay on pdftoppm renders.
 - [Tester console noise](tester-console-noise.md) — long-lived tester browsers accumulate stale HMR errors; hard-reload before treating console errors as real bugs.
 - [Publish promote debugging](deploy-debugging.md) — build log dying at "Creating Autoscale service" +5min = candidate never ready; its logs are never surfaced — replicate prod boot locally to split app vs platform.
+- [Late-mount measurement](late-mount-measurement.md) — ResizeObserver hooks need callback refs when the div mounts after loading gates; else silent 0x0 canvas. Screenshot results carry console.log output.

@@ -11,6 +11,16 @@ const ACCESS_CODE = 'A123';
 
 export function isUnlocked(): boolean {
   try {
+    // Dev-only convenience: ?access=<code> unlocks directly so preview
+    // screenshots and local tooling can reach the console. Stripped from
+    // production builds by the DEV guard.
+    if (import.meta.env.DEV) {
+      const qp = new URLSearchParams(window.location.search).get('access');
+      if (qp && qp.trim() === ACCESS_CODE) {
+        grantAccess();
+        return true;
+      }
+    }
     return localStorage.getItem(STORAGE_KEY) === 'granted';
   } catch {
     return false;

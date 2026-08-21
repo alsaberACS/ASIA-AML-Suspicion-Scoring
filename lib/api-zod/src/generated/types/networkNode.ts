@@ -5,6 +5,7 @@
  * ASIA AML Suspicion Scoring API
  * OpenAPI spec version: 0.1.0
  */
+import type { NetworkNodeKind } from './networkNodeKind';
 import type { NetworkNodeType } from './networkNodeType';
 
 export interface NetworkNode {
@@ -12,10 +13,16 @@ export interface NetworkNode {
   label: string;
   type: NetworkNodeType;
   /** @nullable */
+  kind?: NetworkNodeKind;
+  /** @nullable */
+  accountTail?: string | null;
+  /** @nullable */
   bank?: string | null;
   /** @nullable */
   country?: string | null;
   totalInKwd: number;
   totalOutKwd: number;
   txnCount: number;
+  flaggedCount?: number;
+  flagIds?: string[];
 }

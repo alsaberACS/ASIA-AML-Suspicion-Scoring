@@ -5,10 +5,13 @@
  * ASIA AML Suspicion Scoring API
  * OpenAPI spec version: 0.1.0
  */
+import type { NetworkEdgeKind } from './networkEdgeKind';
 
 export interface NetworkEdge {
   source: string;
   target: string;
   valueKwd: number;
   txnCount: number;
+  kind?: NetworkEdgeKind;
+  flaggedCount?: number;
 }

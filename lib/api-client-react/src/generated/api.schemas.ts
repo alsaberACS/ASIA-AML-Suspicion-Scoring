@@ -201,10 +201,28 @@ export const NetworkNodeType = {
   counterparty: 'counterparty',
 } as const;
 
+/**
+ * @nullable
+ */
+export type NetworkNodeKind = typeof NetworkNodeKind[keyof typeof NetworkNodeKind] | null;
+
+
+export const NetworkNodeKind = {
+  account: 'account',
+  cash: 'cash',
+  name: 'name',
+  account_ref: 'account_ref',
+  instapay_ref: 'instapay_ref',
+} as const;
+
 export interface NetworkNode {
   id: string;
   label: string;
   type: NetworkNodeType;
+  /** @nullable */
+  kind?: NetworkNodeKind;
+  /** @nullable */
+  accountTail?: string | null;
   /** @nullable */
   bank?: string | null;
   /** @nullable */
@@ -212,13 +230,25 @@ export interface NetworkNode {
   totalInKwd: number;
   totalOutKwd: number;
   txnCount: number;
+  flaggedCount?: number;
+  flagIds?: string[];
 }
+
+export type NetworkEdgeKind = typeof NetworkEdgeKind[keyof typeof NetworkEdgeKind];
+
+
+export const NetworkEdgeKind = {
+  flow: 'flow',
+  internal: 'internal',
+} as const;
 
 export interface NetworkEdge {
   source: string;
   target: string;
   valueKwd: number;
   txnCount: number;
+  kind?: NetworkEdgeKind;
+  flaggedCount?: number;
 }
 
 export interface NetworkGraph {

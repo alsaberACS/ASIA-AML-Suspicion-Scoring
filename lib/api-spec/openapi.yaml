@@ -736,11 +736,17 @@ components:
         id: { type: string }
         label: { type: string }
         type: { type: string, enum: [subject_account, counterparty] }
+        kind: { type: ["string", "null"], enum: [account, cash, name, account_ref, instapay_ref, null] }
+        accountTail: { type: ["string", "null"] }
         bank: { type: ["string", "null"] }
         country: { type: ["string", "null"] }
         totalInKwd: { type: number }
         totalOutKwd: { type: number }
         txnCount: { type: integer }
+        flaggedCount: { type: integer }
+        flagIds:
+          type: array
+          items: { type: string }
     NetworkEdge:
       type: object
       required: [source, target, valueKwd, txnCount]
@@ -749,6 +755,8 @@ components:
         target: { type: string }
         valueKwd: { type: number }
         txnCount: { type: integer }
+        kind: { type: string, enum: [flow, internal] }
+        flaggedCount: { type: integer }
     FeatureValue:
       type: object
       required: [key, label, group, value, zone]

@@ -4,7 +4,6 @@ import {
   useGetAnalysisRun,
   getGetAnalysisRunQueryKey,
   useGetCaseTimeline,
-  useGetCaseNetwork,
   useCreateDisposition,
   useListCaseTransactions,
   AnalysisRun,
@@ -27,6 +26,8 @@ import {
   AlertTriangle, CheckCircle2, AlertCircle, Info, ShieldAlert, Activity,
   ArrowRightLeft, Layers, BrainCircuit, Shield, Network, Scale, FileText, FileSearch, ArrowRight, Search, ListFilter, Download, Maximize2
 } from 'lucide-react';
+import { useLocation } from 'wouter';
+import CaseNetworkGraph from './CaseNetworkGraph';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -43,6 +44,7 @@ import type { SanctionsScreening } from '@workspace/api-client-react';
 export default function EvidencePack({ caseId }: { caseId: number }) {
   const { data: latestAnalysis, isLoading: analysisLoading, error: analysisError, refetch: refetchLatest } = useGetLatestAnalysis(caseId);
   const [activeTab, setActiveTab] = useState('summary');
+  const [, setLocation] = useLocation();
   const [transactionIdsFilter, setTransactionIdsFilter] = useState<string | undefined>();
   
   // AI Polling logic
@@ -106,7 +108,7 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
             <TabsTrigger value="features" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Feature Matrix</TabsTrigger>
             <TabsTrigger value="consolidation" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Consolidation</TabsTrigger>
             <TabsTrigger value="timeline" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Timeline</TabsTrigger>
-            {/* <TabsTrigger value="network" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Network</TabsTrigger> */}
+            <TabsTrigger value="network" data-testid="tab-network" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Network</TabsTrigger>
             <TabsTrigger value="intelligence" data-testid="tab-intelligence" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               Investigation Intel
               {shouldPoll && <span className="ml-2 h-2 w-2 rounded-full bg-primary animate-pulse" />}
@@ -129,6 +131,24 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
 
         <TabsContent value="sanctions" className="m-0 focus-visible:outline-none">
           <SanctionsView run={run} />
+        </TabsContent>
+
+        <TabsContent value="network" className="m-0 focus-visible:outline-none">
+          <CaseNetworkGraph
+            caseId={caseId}
+            height={560}
+            actions={
+              <button
+                type="button"
+                onClick={() => setLocation(`/cases/${caseId}/network`)}
+                className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                data-testid="button-open-full-network"
+              >
+                <Maximize2 className="h-3 w-3" />
+                Full screen
+              </button>
+            }
+          />
         </TabsContent>
         
         <TabsContent value="features" className="m-0 focus-visible:outline-none">

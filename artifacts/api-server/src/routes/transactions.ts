@@ -6,6 +6,7 @@ import {
   GetCaseTimelineParams,
   ListCaseTransactionsQueryParams,
 } from "@workspace/api-zod";
+import { buildIdentityIndex } from "../aml/identity";
 import { txnToApi } from "../aml/serialize";
 import { h } from "./util";
 
@@ -130,104 +131,176 @@ router.get(
       .from(transactionsTable)
       .where(eq(transactionsTable.caseId, caseId));
 
+    // Cluster counterparty spellings with the same conservative identity
+    // resolution the rest of the analytics use, so graph parties line up
+    // with counterparty numbers elsewhere in the app.
+    const idx = buildIdentityIndex(rows.map((r) => r.counterpartyName));
+
+    type NodeKind = "account" | "cash" | "name" | "account_ref" | "instapay_ref";
     interface NodeAcc {
       id: string;
       label: string;
       type: "subject_account" | "counterparty";
+      kind: NodeKind;
+      accountTail: string | null;
       bank: string | null;
       country: string | null;
       totalInKwd: number;
       totalOutKwd: number;
       txnCount: number;
+      flaggedCount: number;
+      flagIds: Set<string>;
+    }
+    interface EdgeAcc {
+      source: string;
+      target: string;
+      valueKwd: number;
+      txnCount: number;
+      kind: "flow" | "internal";
+      flaggedCount: number;
     }
     const nodes = new Map<string, NodeAcc>();
-    const edges = new Map<string, { source: string; target: string; valueKwd: number; txnCount: number }>();
+    const edges = new Map<string, EdgeAcc>();
     const acctNode = (bank: string, accountId: string): NodeAcc => {
       const id = `acct:${bank}|${accountId}`;
       let n = nodes.get(id);
       if (!n) {
-        n = { id, label: `${bank}`, type: "subject_account", bank, country: null, totalInKwd: 0, totalOutKwd: 0, txnCount: 0 };
+        // Digits-only tail: masked ids ("...XXXX") and word-like ids give no
+        // useful tail, so require at least two digits.
+        const digits = accountId.replace(/\D+/g, "");
+        const tail = digits.slice(-4);
+        n = {
+          id,
+          label: bank,
+          type: "subject_account",
+          kind: "account",
+          accountTail: tail.length >= 2 ? tail : null,
+          bank,
+          country: null,
+          totalInKwd: 0,
+          totalOutKwd: 0,
+          txnCount: 0,
+          flaggedCount: 0,
+          flagIds: new Set<string>(),
+        };
         nodes.set(id, n);
       }
       return n;
     };
-    const cpNode = (key: string, label: string, country: string | null): NodeAcc => {
+    const cpNode = (key: string, label: string, kind: NodeKind, country: string | null): NodeAcc => {
       const id = `cp:${key}`;
       let n = nodes.get(id);
       if (!n) {
-        n = { id, label, type: "counterparty", bank: null, country, totalInKwd: 0, totalOutKwd: 0, txnCount: 0 };
+        n = {
+          id,
+          label,
+          type: "counterparty",
+          kind,
+          accountTail: null,
+          bank: null,
+          country,
+          totalInKwd: 0,
+          totalOutKwd: 0,
+          txnCount: 0,
+          flaggedCount: 0,
+          flagIds: new Set<string>(),
+        };
         nodes.set(id, n);
       }
+      if (!n.country && country) n.country = country;
       return n;
     };
-    const addEdge = (source: string, target: string, v: number) => {
+    const addEdge = (source: string, target: string, v: number, kind: "flow" | "internal", flagged: number) => {
       const key = `${source}->${target}`;
       let e = edges.get(key);
       if (!e) {
-        e = { source, target, valueKwd: 0, txnCount: 0 };
+        e = { source, target, valueKwd: 0, txnCount: 0, kind, flaggedCount: 0 };
         edges.set(key, e);
       }
       e.valueKwd += v;
       e.txnCount++;
+      e.flaggedCount += flagged;
+    };
+    const markFlags = (n: NodeAcc, flags: string[]) => {
+      if (flags.length === 0) return;
+      n.flaggedCount++;
+      for (const f of flags) {
+        if (n.flagIds.size >= 8) break;
+        n.flagIds.add(f);
+      }
     };
 
     // Internal pair partners: map pairId -> {debit acct, credit acct}.
-    const pairAcct = new Map<number, { from?: string; to?: string; value: number }>();
+    const pairAcct = new Map<number, { from?: string; to?: string; value: number; flagged: number }>();
     for (const t of rows) {
       const acct = acctNode(t.bank, t.accountId);
       acct.txnCount++;
       if (t.direction === "credit") acct.totalInKwd += t.amountKwd;
       else acct.totalOutKwd += t.amountKwd;
+      markFlags(acct, t.flags);
+      const flagged = t.flags.length > 0 ? 1 : 0;
 
       if (t.isInternalTransfer && t.internalPairId != null) {
-        const e = pairAcct.get(t.internalPairId) ?? { value: 0 };
+        const e = pairAcct.get(t.internalPairId) ?? { value: 0, flagged: 0 };
         if (t.direction === "debit") e.from = acct.id;
         else e.to = acct.id;
         e.value = Math.max(e.value, t.amountKwd);
+        e.flagged = Math.max(e.flagged, flagged);
         pairAcct.set(t.internalPairId, e);
         continue;
       }
       if (t.channel === "cash_deposit" || t.channel === "cash_withdrawal") {
-        const cash = cpNode("CASH", "Cash (physical)", null);
+        const cash = cpNode("CASH", "Cash (physical)", "cash", null);
         cash.txnCount++;
+        markFlags(cash, t.flags);
         if (t.direction === "credit") {
           cash.totalOutKwd += t.amountKwd;
-          addEdge(cash.id, acct.id, t.amountKwd);
+          addEdge(cash.id, acct.id, t.amountKwd, "flow", flagged);
         } else {
           cash.totalInKwd += t.amountKwd;
-          addEdge(acct.id, cash.id, t.amountKwd);
+          addEdge(acct.id, cash.id, t.amountKwd, "flow", flagged);
         }
         continue;
       }
-      if (t.counterpartyName) {
-        const key = t.counterpartyName.toUpperCase().replace(/\s+/g, " ").trim();
-        const cp = cpNode(key, t.counterpartyName.trim(), t.counterpartyCountry);
+      const clusterKey = idx.keyOf(t.counterpartyName);
+      if (clusterKey) {
+        const cp = cpNode(clusterKey, idx.displayOf(clusterKey), idx.kindOf(clusterKey), t.counterpartyCountry);
         cp.txnCount++;
+        markFlags(cp, t.flags);
         if (t.direction === "credit") {
           cp.totalOutKwd += t.amountKwd;
-          addEdge(cp.id, acct.id, t.amountKwd);
+          addEdge(cp.id, acct.id, t.amountKwd, "flow", flagged);
         } else {
           cp.totalInKwd += t.amountKwd;
-          addEdge(acct.id, cp.id, t.amountKwd);
+          addEdge(acct.id, cp.id, t.amountKwd, "flow", flagged);
         }
       }
     }
     for (const [, p] of pairAcct) {
-      if (p.from && p.to) addEdge(p.from, p.to, p.value);
+      if (p.from && p.to) addEdge(p.from, p.to, p.value, "internal", p.flagged);
     }
 
-    // Keep subject accounts + cash + top counterparties by value.
+    // Strict counterparty budget: flagged parties are admitted first (by
+    // moved value), remaining slots fill with the largest unflagged parties.
+    // Subject accounts and cash live outside the budget, so the graph stays
+    // bounded even in heavily flagged cases.
+    const CP_BUDGET = 60;
     const cps = [...nodes.values()].filter((n) => n.type === "counterparty" && n.id !== "cp:CASH");
     cps.sort((a, b) => b.totalInKwd + b.totalOutKwd - (a.totalInKwd + a.totalOutKwd));
+    const keptCps = [
+      ...cps.filter((n) => n.flaggedCount > 0),
+      ...cps.filter((n) => n.flaggedCount === 0),
+    ].slice(0, CP_BUDGET);
     const keep = new Set<string>([
       ...[...nodes.values()].filter((n) => n.type === "subject_account").map((n) => n.id),
       "cp:CASH",
-      ...cps.slice(0, 40).map((n) => n.id),
+      ...keptCps.map((n) => n.id),
     ]);
     const outNodes = [...nodes.values()]
       .filter((n) => keep.has(n.id))
       .map((n) => ({
         ...n,
+        flagIds: [...n.flagIds],
         totalInKwd: r2(n.totalInKwd),
         totalOutKwd: r2(n.totalOutKwd),
       }));
