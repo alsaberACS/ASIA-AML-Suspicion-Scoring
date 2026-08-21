@@ -1786,6 +1786,77 @@ export const useDeleteCaseDisclosure = <TError = ErrorType<void>,
       return useMutation(getDeleteCaseDisclosureMutationOptions(options));
     }
 
+export const getLocateCaseDisclosureSourcesUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/disclosure/locate`
+}
+
+/**
+ * @summary Map extracted items to their handwritten location on the PDF pages
+ */
+export const locateCaseDisclosureSources = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<Disclosure> => {
+
+  return customFetch<Disclosure>(getLocateCaseDisclosureSourcesUrl(caseId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLocateCaseDisclosureSourcesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof locateCaseDisclosureSources>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof locateCaseDisclosureSources>>, TError,{caseId: number}, TContext> => {
+
+const mutationKey = ['locateCaseDisclosureSources'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof locateCaseDisclosureSources>>, {caseId: number}> = (props) => {
+          const {caseId} = props ?? {};
+
+          return  locateCaseDisclosureSources(caseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LocateCaseDisclosureSourcesMutationResult = NonNullable<Awaited<ReturnType<typeof locateCaseDisclosureSources>>>
+
+    export type LocateCaseDisclosureSourcesMutationError = ErrorType<void>
+
+    /**
+ * @summary Map extracted items to their handwritten location on the PDF pages
+ */
+export const useLocateCaseDisclosureSources = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof locateCaseDisclosureSources>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof locateCaseDisclosureSources>>,
+        TError,
+        {caseId: number},
+        TContext
+      > => {
+      return useMutation(getLocateCaseDisclosureSourcesMutationOptions(options));
+    }
+
 export const getGetCaseDisclosurePdfUrl = (caseId: number,) => {
 
 

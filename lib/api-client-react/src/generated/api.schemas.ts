@@ -1070,6 +1070,15 @@ export interface DisclosureReaders {
   adjudicated: boolean;
 }
 
+export interface DisclosureSourceLocation {
+  key: string;
+  page: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface DisclosureExtraction {
   declarationType: DisclosureExtractionDeclarationType;
   /** @nullable */
@@ -1091,6 +1100,7 @@ export interface DisclosureExtraction {
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
   readers?: DisclosureReaders | null;
+  locations?: DisclosureSourceLocation[];
 }
 
 export type DisclosureStatus = typeof DisclosureStatus[keyof typeof DisclosureStatus];

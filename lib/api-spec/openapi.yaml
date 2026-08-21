@@ -441,6 +441,27 @@ paths:
           description: Deleted
         "404":
           description: No disclosure uploaded for this case
+  /cases/{caseId}/disclosure/locate:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: locateCaseDisclosureSources
+      summary: Map extracted items to their handwritten location on the PDF pages
+      responses:
+        "200":
+          description: Source locations stored on the extraction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Disclosure" }
+        "404":
+          description: No disclosure uploaded for this case
+        "409":
+          description: Reading is not complete, or the disclosure changed during mapping
+        "502":
+          description: The locator model call failed
   /cases/{caseId}/disclosure/pdf:
     parameters:
       - name: caseId
@@ -1304,6 +1325,19 @@ components:
           oneOf:
             - $ref: "#/components/schemas/DisclosureReaders"
             - type: "null"
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/DisclosureSourceLocation" }
+    DisclosureSourceLocation:
+      type: object
+      required: [key, page, x0, y0, x1, y1]
+      properties:
+        key: { type: string }
+        page: { type: integer }
+        x0: { type: number }
+        y0: { type: number }
+        x1: { type: number }
+        y1: { type: number }
     DisclosureReaders:
       type: object
       required: [primary, adjudicated]

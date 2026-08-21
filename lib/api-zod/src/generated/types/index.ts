@@ -44,6 +44,7 @@ export * from './disclosureReconciliationFinding';
 export * from './disclosureReconciliationFindingCategory';
 export * from './disclosureReconciliationFindingSeverity';
 export * from './disclosureSecurity';
+export * from './disclosureSourceLocation';
 export * from './disclosureStatus';
 export * from './disclosureUpload';
 export * from './disclosureUsufruct';

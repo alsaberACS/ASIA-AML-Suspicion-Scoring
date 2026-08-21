@@ -5,6 +5,7 @@ import {
   getGetCaseDisclosureQueryKey, 
   useUpdateCaseDisclosureExtraction,
   useReprocessCaseDisclosure,
+  useLocateCaseDisclosureSources,
   DisclosureExtraction,
   DisclosureDeclarant
 } from '@workspace/api-client-react';
@@ -22,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Save, X, RefreshCw, FileText, AlertTriangle, Plus, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsRight, Save, X, RefreshCw, FileText, AlertTriangle, Plus, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function CaseDisclosureWorkbench() {
@@ -41,25 +42,38 @@ export default function CaseDisclosureWorkbench() {
 
   const updateExtraction = useUpdateCaseDisclosureExtraction();
   const reprocess = useReprocessCaseDisclosure();
+  const locateSources = useLocateCaseDisclosureSources();
 
   // PDF Viewer State
   const [numPages, setNumPages] = useState<number>();
   const [pageNumber, setPageNumber] = useState<number>(1);
 
-  // Field-provenance reveal: focusing an extracted field jumps the PDF to the
-  // page the readers took it from and flashes a page-level highlight (the form
-  // is scanned - readers record source pages, not coordinates). 'document'
-  // marks synthesized fields such as the summary, which have no single spot.
+  // Field-provenance reveal: focusing an extracted field jumps the PDF to
+  // its source. 'box' pins the region the locator pass mapped for that item
+  // (normalized 0-1 coordinates); 'page' is the page-level flash fallback
+  // when no region is known; 'document' marks synthesized fields such as
+  // the summary, which have no single spot.
   const [sourceReveal, setSourceReveal] = useState<
-    { kind: 'page'; page: number; seq: number } | { kind: 'document'; seq: number } | null
+    | { kind: 'page'; page: number; seq: number }
+    | { kind: 'box'; page: number; x0: number; y0: number; x1: number; y1: number; itemKey: string; seq: number }
+    | { kind: 'document'; seq: number }
+    | null
   >(null);
   const revealSeq = useRef(0);
+  // Region overlay node + a counter bumped when the page canvas paints, so
+  // scroll-into-view runs against real geometry, not the previous page's.
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [pageRenderSeq, setPageRenderSeq] = useState(0);
 
   // Draft State. Keyed on caseId + extractedAt: a fresh AI read (new
   // extractedAt) rebuilds the draft, and a running re-read clears it so a
   // stale draft can never be saved over the incoming reading.
   const [draft, setDraft] = useState<DisclosureExtraction | null>(null);
   const initializedForKey = useRef<string | null>(null);
+  // Rows deleted since this draft was built. A source mapping computed
+  // against the older structure must not merge in afterwards - its keys
+  // would attach to the wrong rows.
+  const structuralEpochRef = useRef(0);
   const draftKey = disclosure ? `${caseId}:${disclosure.extractedAt ?? ''}` : null;
   const isDirty = useMemo(() => {
     if (!draft) return false;
@@ -75,16 +89,71 @@ export default function CaseDisclosureWorkbench() {
     }
     if (disclosure.extraction && draftKey && initializedForKey.current !== draftKey) {
       initializedForKey.current = draftKey;
+      structuralEpochRef.current = 0;
       setDraft(JSON.parse(JSON.stringify(disclosure.extraction)));
     }
   }, [disclosure, draftKey]);
 
   // Auto-dismiss the provenance highlight after the flash has played out.
+  // Region boxes linger longer - the investigator is reading ink there.
   useEffect(() => {
     if (!sourceReveal) return;
-    const t = window.setTimeout(() => setSourceReveal(null), 2200);
+    const t = window.setTimeout(
+      () => setSourceReveal(null),
+      sourceReveal.kind === 'box' ? 4500 : 2200,
+    );
     return () => window.clearTimeout(t);
   }, [sourceReveal]);
+
+  // Region provenance from the locator pass, keyed "declarant.<field>" and
+  // "<section>.<rowIndex>". Draft-first so row deletions remap instantly.
+  const locationMap = useMemo(() => {
+    // Strictly draft-first once a draft exists: after a row deletion the
+    // server copy's keys are misaligned, so degrading to "no boxes" beats
+    // pointing at the wrong row.
+    const list = draft ? draft.locations ?? [] : disclosure?.extraction?.locations ?? [];
+    return new Map(list.map(l => [l.key, l] as const));
+  }, [draft, disclosure?.extraction?.locations]);
+
+  // A locate backfill lands on the server copy without touching extractedAt,
+  // so the already-built draft never rebuilds; fold fresh locations in (they
+  // are not user-editable, so this cannot clobber corrections in progress).
+  useEffect(() => {
+    const locs = disclosure?.extraction?.locations;
+    if (!locs) return;
+    // Rows deleted since the mapping was requested: the keys no longer
+    // line up with this draft, so leave the draft unmapped.
+    if (structuralEpochRef.current !== 0) return;
+    setDraft(prev => (prev && !prev.locations ? { ...prev, locations: locs } : prev));
+  }, [disclosure?.extraction?.locations]);
+
+  // Readings that predate the locator pass have locations === undefined
+  // (never ran), unlike [] (ran, mapped nothing). Trigger one silent
+  // backfill per reading; on failure the page-level flash keeps working.
+  const autoLocateKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!disclosure || disclosure.status !== 'ready' || !disclosure.extraction) return;
+    if (disclosure.extraction.locations) return;
+    if (!draftKey || autoLocateKey.current === draftKey) return;
+    autoLocateKey.current = draftKey;
+    locateSources.mutate({ caseId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCaseDisclosureQueryKey(caseId) });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disclosure, draftKey, caseId]);
+
+  // Bring the pinned region into view once the target page has painted.
+  useEffect(() => {
+    if (!sourceReveal || sourceReveal.kind !== 'box' || !boxRef.current) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    boxRef.current.scrollIntoView({
+      block: 'center',
+      inline: 'nearest',
+      behavior: reduce ? 'auto' : 'smooth',
+    });
+  }, [sourceReveal, pageRenderSeq]);
 
   if (isLoading) {
     return <div className="h-[100dvh] flex items-center justify-center font-mono text-primary animate-pulse bg-background">Initializing Workbench...</div>;
@@ -114,9 +183,20 @@ export default function CaseDisclosureWorkbench() {
 
   const handleSave = () => {
     if (!draft) return;
+    const epochAtSave = structuralEpochRef.current;
+    const savedWithoutLocations = !draft.locations;
     updateExtraction.mutate({ caseId, data: draft }, {
       onSuccess: () => {
         toast.success("Corrections locked into authoritative record.");
+        // The saved draft is now the authoritative structure. If nothing
+        // changed while the save was in flight, stale-mapping protection
+        // can rewind; and if this save went out unmapped (rows deleted
+        // before the mapping arrived), let the backfill run once more
+        // against the saved structure.
+        if (structuralEpochRef.current === epochAtSave) {
+          structuralEpochRef.current = 0;
+          if (savedWithoutLocations) autoLocateKey.current = null;
+        }
         queryClient.invalidateQueries({ queryKey: getGetCaseDisclosureQueryKey(caseId) });
       },
       onError: (err: any) => {
@@ -127,6 +207,8 @@ export default function CaseDisclosureWorkbench() {
 
   const handleDiscard = () => {
     if (disclosure.extraction) {
+      // Back to the server copy: structure and mapping are aligned again.
+      structuralEpochRef.current = 0;
       setDraft(JSON.parse(JSON.stringify(disclosure.extraction)));
     }
   };
@@ -145,7 +227,33 @@ export default function CaseDisclosureWorkbench() {
     }
   };
 
-  const revealSource = (page?: number | null) => {
+  const revealSource = (page?: number | null, itemKey?: string) => {
+    // Prefer the locator's region for this item; declarant fields fall back
+    // to the whole declarant block before degrading to a page flash.
+    const loc = itemKey
+      ? locationMap.get(itemKey) ??
+        (itemKey.startsWith('declarant') ? locationMap.get('declarant') : undefined)
+      : undefined;
+    if (loc && !(numPages && loc.page > numPages) && loc.page >= 1) {
+      setPageNumber(loc.page);
+      // Same region already pinned: keep the running overlay and its timer
+      // instead of restarting, so tabbing across a row's fields stays calm.
+      setSourceReveal(prev =>
+        prev && prev.kind === 'box' && prev.itemKey === loc.key
+          ? prev
+          : {
+              kind: 'box',
+              page: loc.page,
+              x0: loc.x0,
+              y0: loc.y0,
+              x1: loc.x1,
+              y1: loc.y1,
+              itemKey: loc.key,
+              seq: ++revealSeq.current,
+            }
+      );
+      return;
+    }
     if (!page || page < 1 || (numPages ? page > numPages : false)) return;
     setPageNumber(page);
     // Same source already on display: keep the running flash and its timer
@@ -201,11 +309,23 @@ export default function CaseDisclosureWorkbench() {
   };
 
   const deleteRow = (section: keyof DisclosureExtraction, index: number) => {
+    structuralEpochRef.current += 1;
     setDraft(prev => {
       if (!prev) return prev;
       const array = [...(prev[section] as any[])];
       array.splice(index, 1);
-      return { ...prev, [section]: array };
+      // Keep region provenance aligned: drop the deleted row's box and
+      // shift later rows in the same section down one index.
+      const sectionName = String(section);
+      const locations = prev.locations
+        ?.filter(l => l.key !== `${sectionName}.${index}`)
+        .map(l => {
+          const m = l.key.match(/^([a-zA-Z]+)\.(\d+)$/);
+          if (!m || m[1] !== sectionName) return l;
+          const i = Number(m[2]);
+          return i > index ? { ...l, key: `${sectionName}.${i - 1}` } : l;
+        });
+      return { ...prev, [section]: array, ...(locations ? { locations } : {}) };
     });
   };
 
@@ -238,11 +358,11 @@ export default function CaseDisclosureWorkbench() {
     return null;
   };
 
-  const renderPageChip = (page?: number | null) => {
+  const renderPageChip = (page?: number | null, itemKey?: string) => {
     if (!page) return null;
     return (
       <button 
-        onClick={() => revealSource(page)}
+        onClick={() => revealSource(page, itemKey)}
         className="text-[9px] h-4 px-1.5 rounded-sm bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary transition-colors uppercase tracking-widest font-mono border border-border"
         data-testid="chip-page"
       >
@@ -272,7 +392,8 @@ export default function CaseDisclosureWorkbench() {
               <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
               {disclosure.phase === 'reading_primary' ? 'CLAUDE SCANNING...' :
                disclosure.phase === 'reading_secondary' ? 'GEMINI SCANNING...' :
-               disclosure.phase === 'adjudicating' ? 'ADJUDICATING...' : 'PROCESSING...'}
+               disclosure.phase === 'adjudicating' ? 'ADJUDICATING...' :
+               disclosure.phase === 'locating' ? 'MAPPING SOURCES...' : 'PROCESSING...'}
             </div>
           )}
           {disclosure.correctedAt && (
@@ -334,7 +455,15 @@ export default function CaseDisclosureWorkbench() {
                   data-testid="chip-source-indicator"
                   className="source-reveal-chip font-mono text-[9px] uppercase tracking-widest text-primary bg-primary/10 border border-primary/40 rounded-sm px-1.5 py-0.5 whitespace-nowrap"
                 >
-                  {sourceReveal.kind === 'page' ? `Source: Pg ${sourceReveal.page}` : 'Source: Entire document'}
+                  {sourceReveal.kind === 'document' ? 'Source: Entire document' : `Source: Pg ${sourceReveal.page}`}
+                </span>
+              )}
+              {!sourceReveal && locateSources.isPending && (
+                <span
+                  data-testid="chip-locating"
+                  className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground border border-border rounded-sm px-1.5 py-0.5 whitespace-nowrap animate-pulse"
+                >
+                  Mapping source locations
                 </span>
               )}
             </div>
@@ -352,7 +481,7 @@ export default function CaseDisclosureWorkbench() {
           </div>
           <ScrollArea className="flex-1">
             <div className="p-4 flex justify-center w-full">
-              <div className="relative">
+              <div className="relative overflow-hidden">
                 <Document
                 file={`${import.meta.env.BASE_URL}api/cases/${caseId}/disclosure/pdf`}
                 onLoadSuccess={({ numPages }) => {
@@ -361,7 +490,7 @@ export default function CaseDisclosureWorkbench() {
                   // known; clamp so <Page> never receives an out-of-range page.
                   setPageNumber(p => Math.min(Math.max(1, p), numPages));
                   setSourceReveal(prev =>
-                    prev && prev.kind === 'page' && prev.page > numPages ? null : prev
+                    prev && prev.kind !== 'document' && prev.page > numPages ? null : prev
                   );
                 }}
                 loading={<div className="font-mono text-sm text-primary animate-pulse py-20">Loading Document...</div>}
@@ -373,6 +502,7 @@ export default function CaseDisclosureWorkbench() {
                   renderAnnotationLayer={false}
                   scale={1.2}
                   className="shadow-2xl border border-border"
+                  onRenderSuccess={() => setPageRenderSeq(s => s + 1)}
                 />
                 </Document>
                 {sourceReveal?.kind === 'page' && (
@@ -382,6 +512,27 @@ export default function CaseDisclosureWorkbench() {
                     data-testid="overlay-source-flash"
                     className="source-reveal-flash absolute inset-0 z-10 rounded-sm"
                   />
+                )}
+                {sourceReveal?.kind === 'box' && sourceReveal.page === pageNumber && (
+                  <div
+                    key={sourceReveal.seq}
+                    aria-hidden
+                    data-testid="overlay-source-box"
+                    ref={boxRef}
+                    className="source-reveal-box absolute z-20"
+                    style={{
+                      left: `${sourceReveal.x0 * 100}%`,
+                      top: `${sourceReveal.y0 * 100}%`,
+                      width: `${(sourceReveal.x1 - sourceReveal.x0) * 100}%`,
+                      height: `${(sourceReveal.y1 - sourceReveal.y0) * 100}%`,
+                    }}
+                  >
+                    <span className="source-reveal-corner corner-tl" />
+                    <span className="source-reveal-corner corner-tr" />
+                    <span className="source-reveal-corner corner-bl" />
+                    <span className="source-reveal-corner corner-br" />
+                    <ChevronsRight className="source-reveal-arrow h-4 w-4" />
+                  </div>
                 )}
               </div>
             </div>
@@ -487,7 +638,7 @@ export default function CaseDisclosureWorkbench() {
                   <section className="space-y-3">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                       <h3 className="text-sm font-mono uppercase tracking-widest text-foreground">1. Declarant Details</h3>
-                      {renderPageChip(draft.declarant.page)}
+                      {renderPageChip(draft.declarant.page, 'declarant')}
                     </div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-4 bg-card/50 p-4 rounded-sm border border-border">
                       {['name', 'civilId', 'nationality', 'residenceCountry', 'gender', 'passportNo', 'employer', 'jobTitle', 'jobStartDate', 'jobEndDate', 'monthlySalaryKwd', 'workPhone', 'mobile', 'homePhone', 'email', 'homeAddress'].map(field => {
@@ -505,7 +656,7 @@ export default function CaseDisclosureWorkbench() {
                             <Input 
                               value={val} 
                               onChange={e => updateDeclarant(field as keyof DisclosureDeclarant, e.target.value)}
-                              onFocus={() => revealSource(draft.declarant?.page)}
+                              onFocus={() => revealSource(draft.declarant?.page, `declarant.${field}`)}
                               className={`h-8 text-xs font-mono rounded-sm ${isUncertain ? 'border-amber-500/50 bg-amber-500/5' : isCorrected ? 'border-emerald-500/50' : ''}`}
                             />
                             {renderAlternates(alternates)}
@@ -603,8 +754,9 @@ export default function CaseDisclosureWorkbench() {
                       { key: 'reading_primary', label: 'Reader 1 - Claude Sonnet 4.6' },
                       { key: 'reading_secondary', label: 'Reader 2 - Gemini 3.1 Pro' },
                       { key: 'adjudicating', label: 'Adjudication - cross-checking ink' },
+                      { key: 'locating', label: 'Source mapping - pinning ink locations' },
                     ] as const).map((s, i) => {
-                      const order = ['reading_primary', 'reading_secondary', 'adjudicating'];
+                      const order = ['reading_primary', 'reading_secondary', 'adjudicating', 'locating'];
                       const cur = order.indexOf(disclosure.phase || 'reading_primary');
                       const state = i < cur ? 'done' : i === cur ? 'active' : 'pending';
                       return (
@@ -665,7 +817,7 @@ function SectionEditor({
           {rows.map((row: any, i: number) => (
             <div key={i} className={`bg-card/50 p-4 rounded-sm border ${row.uncertain ? 'border-amber-500/30' : 'border-border'} relative group`}>
               <div className="absolute right-2 top-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                {renderPageChip(row.page)}
+                {renderPageChip(row.page, `${sectionKey}.${i}`)}
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(sectionKey, i)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -679,7 +831,7 @@ function SectionEditor({
                       <select 
                         value={row[f.key] ? 'true' : 'false'} 
                         onChange={e => onUpdate(sectionKey, i, f.key, e.target.value === 'true')}
-                        onFocus={() => onRevealSource(row.page)}
+                        onFocus={() => onRevealSource(row.page, `${sectionKey}.${i}`)}
                         className={`w-full bg-input border rounded-sm h-8 text-xs font-mono px-2 outline-none focus:ring-1 focus:ring-primary ${row.uncertain ? 'border-amber-500/50 bg-amber-500/5' : row.corrected ? 'border-emerald-500/50' : 'border-border'}`}
                       >
                         <option value="false">No</option>
@@ -693,7 +845,7 @@ function SectionEditor({
                           const isNumeric = ['areaSqm', 'ownershipPct', 'valueKwd', 'amountKwd', 'count', 'totalValueKwd'].includes(f.key);
                           onUpdate(sectionKey, i, f.key, isNumeric ? (val === '' ? null : Number(val)) : val);
                         }}
-                        onFocus={() => onRevealSource(row.page)}
+                        onFocus={() => onRevealSource(row.page, `${sectionKey}.${i}`)}
                         className={`h-8 text-xs font-mono rounded-sm ${row.uncertain ? 'border-amber-500/50 bg-amber-500/5' : row.corrected ? 'border-emerald-500/50' : ''}`}
                       />
                     )}

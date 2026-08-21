@@ -14,6 +14,7 @@ import type { DisclosureMovable } from './disclosureMovable';
 import type { DisclosureReaders } from './disclosureReaders';
 import type { DisclosureRealEstate } from './disclosureRealEstate';
 import type { DisclosureSecurity } from './disclosureSecurity';
+import type { DisclosureSourceLocation } from './disclosureSourceLocation';
 import type { DisclosureUsufruct } from './disclosureUsufruct';
 
 export interface DisclosureExtraction {
@@ -37,4 +38,5 @@ export interface DisclosureExtraction {
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
   readers?: DisclosureReaders | null;
+  locations?: DisclosureSourceLocation[];
 }

@@ -414,3 +414,50 @@
     animation: source-reveal-chip 0.25s ease-out;
   }
 }
+
+/* Region-level provenance: spotlight the located ink area. The oversized
+   box-shadow dims the rest of the page (clipped by the overflow-hidden
+   page wrapper); corner ticks and pointer chevrons mark the box itself. */
+.source-reveal-box {
+  pointer-events: none;
+  border: 1px solid hsl(var(--primary) / 0.95);
+  box-shadow:
+    0 0 0 9999px hsl(220 60% 3% / 0.42),
+    0 0 16px hsl(var(--primary) / 0.4);
+}
+.source-reveal-corner {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 0 solid hsl(var(--primary));
+}
+.corner-tl { top: -2px; left: -2px; border-top-width: 2px; border-left-width: 2px; }
+.corner-tr { top: -2px; right: -2px; border-top-width: 2px; border-right-width: 2px; }
+.corner-bl { bottom: -2px; left: -2px; border-bottom-width: 2px; border-left-width: 2px; }
+.corner-br { bottom: -2px; right: -2px; border-bottom-width: 2px; border-right-width: 2px; }
+.source-reveal-arrow {
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  margin-top: -8px;
+  color: hsl(var(--primary));
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.8));
+}
+@keyframes source-reveal-box-life {
+  0% { opacity: 0; transform: scale(1.04); }
+  6% { opacity: 1; transform: scale(1); }
+  88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes source-reveal-arrow-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(5px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .source-reveal-box {
+    animation: source-reveal-box-life 4.4s ease-in-out forwards;
+  }
+  .source-reveal-arrow {
+    animation: source-reveal-arrow-nudge 0.9s ease-in-out infinite;
+  }
+}

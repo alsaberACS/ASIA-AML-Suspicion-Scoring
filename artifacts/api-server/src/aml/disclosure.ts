@@ -153,6 +153,21 @@ export interface DisclosureReaders {
   adjudicated: boolean;
 }
 
+/**
+ * Page-region provenance for one extracted item, produced by the locator
+ * pass. Coordinates are normalized 0-1 with a top-left origin, relative to
+ * the page box. key is "declarant", "declarant.<field>", or
+ * "<sectionKey>.<rowIndex>".
+ */
+export interface DisclosureSourceLocation {
+  key: string;
+  page: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface DisclosureExtraction {
   declarationType: "first" | "update" | "final" | "unknown";
   declarationDate: string | null;
@@ -170,6 +185,8 @@ export interface DisclosureExtraction {
   sectionsMarkedNone: string[];
   extractionWarnings: string[];
   readers: DisclosureReaders | null;
+  // undefined = locator pass never ran; [] = ran and mapped nothing.
+  locations?: DisclosureSourceLocation[];
 }
 
 export interface DisclosureReconciliationFinding {
@@ -239,6 +256,36 @@ const provenanceOf = (
   return out;
 };
 
+const LOCATION_KEY_RE =
+  /^(declarant(\.[a-zA-Z]{1,40})?|(minorChildren|realEstate|usufructRights|securities|bankAccountsAndDeposits|debtsOwed|valuableMovables)\.\d{1,3})$/;
+
+/**
+ * Locator output is optional region provenance. The undefined-vs-empty
+ * distinction must survive coercion: investigator PUTs round-trip the whole
+ * extraction and must neither fake nor erase a locator attempt.
+ */
+const locationsOf = (v: unknown): DisclosureSourceLocation[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const out: DisclosureSourceLocation[] = [];
+  const seen = new Set<string>();
+  for (const item of v.slice(0, 300)) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const key = typeof o.key === "string" ? o.key.trim() : "";
+    if (!LOCATION_KEY_RE.test(key) || seen.has(key)) continue;
+    const page = num(o.page, 1, 500);
+    const x0 = num(o.x0, 0, 1);
+    const y0 = num(o.y0, 0, 1);
+    const x1 = num(o.x1, 0, 1);
+    const y1 = num(o.y1, 0, 1);
+    if (page == null || x0 == null || y0 == null || x1 == null || y1 == null) continue;
+    if (x1 <= x0 || y1 <= y0) continue;
+    seen.add(key);
+    out.push({ key, page: Math.round(page), x0, y0, x1, y1 });
+  }
+  return out.slice(0, 250);
+};
+
 const readersOf = (v: unknown): DisclosureReaders | null => {
   if (!v || typeof v !== "object") return null;
   const r = v as Record<string, unknown>;
@@ -260,6 +307,22 @@ const SECTION_KEYS = [
   "debtsOwed",
   "valuableMovables",
 ] as const;
+
+/**
+ * True when two extractions have identical row counts in every table
+ * section. Location keys index into section arrays, so a stored mapping
+ * stays aligned only while the structure is unchanged.
+ */
+export function sectionRowCountsMatch(
+  a: DisclosureExtraction,
+  b: DisclosureExtraction,
+): boolean {
+  return SECTION_KEYS.every(
+    (k) =>
+      ((a[k] as unknown[] | undefined)?.length ?? 0) ===
+      ((b[k] as unknown[] | undefined)?.length ?? 0),
+  );
+}
 
 const DECLARANT_FIELD_KEYS = [
   "name",
@@ -438,6 +501,8 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
     (SECTION_KEYS as readonly string[]).includes(k),
   );
 
+  const locations = locationsOf(o.locations);
+
   return {
     declarationType: declType,
     declarationDate: str(o.declarationDate, 40),
@@ -455,6 +520,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
     sectionsMarkedNone: markedNone,
     extractionWarnings: strArr(o.extractionWarnings, 15, 300),
     readers: readersOf(o.readers),
+    ...(locations ? { locations } : {}),
   };
 }
 
@@ -833,6 +899,219 @@ interface ExtractionLog {
   warn(obj: unknown, msg?: string): void;
 }
 
+// ---------------------------------------------------------------------------
+// Source locating - maps every extracted item back to the region of the page
+// where its handwriting sits, so the workbench can point at the ink. Runs as
+// a best-effort pass after extraction; failure degrades to page-level
+// provenance and never fails the reading.
+
+const LOCATE_TIMEOUT_MS = 3 * 60 * 1000;
+
+const LOCATE_SYSTEM = `You map already-extracted data items back to their physical location on a scanned Kuwaiti financial disclosure form (iqrar al-dhimma al-maliyya). The form is printed Arabic (right-to-left) with HANDWRITTEN entries, typically in blue ink.
+CRITICAL - coordinate frame: box_2d is [ymin, xmin, ymax, xmax], integers 0-1000, normalized to the page EXACTLY AS STORED in the PDF (raw pixel axes, top-left origin). These scans are often stored SIDEWAYS (content rotated 90 degrees). Do NOT mentally de-rotate: if writing runs vertically on the stored page, its box must be tall and narrow (large y-span, small x-span). First determine each page's content rotation, then place every box in the raw stored axes.
+You are given the PDF and an inventory of items. Each inventory line is: key | main value | ink transcription (if any) | page hint.
+For every item you can confidently place, output its page and a bounding box around the HANDWRITTEN content:
+- Row items (like realEstate.0): box that single row's band of written cells. On an upright page a row band is wide and short; on a sideways page the same row appears as a TALL NARROW strip - box the strip as it appears in the raw axes.
+- Declarant field items (like declarant.civilId): box the handwritten answer area next to that field's printed label, as it appears in the raw axes.
+- The whole-block item "declarant": box the entire declarant-data table region on its page.
+Rules:
+1. Page hints come from an earlier reading and are usually right - verify against the ink; correct the page if the hint is wrong.
+2. SKIP any item you cannot confidently locate. A missing item is better than a wrong box.
+3. NEVER box the form's pre-printed illustrative example row/column (typed text, gray shading, red dashed border, "mithal tawdihi").
+4. Distinct rows get distinct boxes; never give two rows the same coordinates.
+5. page_rotations is REQUIRED: for every page number that appears in locations, report how many degrees CLOCKWISE the stored page must be turned so its printed text reads normally (0, 90, 180 or 270).
+Reply with ONLY this JSON object - no prose, no code fences:
+{"page_rotations":{"4":90},"locations":[{"key":"realEstate.0","page":4,"box_2d":[312,55,368,940]},{"key":"realEstate.1","page":4,"box_2d":[55,372,940,428]}]}`;
+
+function buildLocateInventory(x: DisclosureExtraction): string {
+  const lines: string[] = [];
+  const hint = (p?: number | null): string => (p ? ` | page hint ${p}` : "");
+  if (x.declarant) {
+    lines.push(`declarant | whole declarant-data block (bayanat 'an al-muqirr)${hint(x.declarant.page)}`);
+    for (const key of DECLARANT_FIELD_KEYS) {
+      const v = (x.declarant as unknown as Record<string, unknown>)[key];
+      if (v == null || v === "") continue;
+      lines.push(`declarant.${key} | ${String(v).slice(0, 80)}${hint(x.declarant.page)}`);
+    }
+  }
+  for (const section of SECTION_KEYS) {
+    (x[section] as DisclosureRowProvenance[]).forEach((r, i) => {
+      const rec = r as unknown as Record<string, unknown>;
+      const main = [rec.name, rec.location, rec.company, rec.institution, rec.creditor, rec.description]
+        .find((v): v is string => typeof v === "string" && v.length > 0);
+      lines.push(
+        `${section}.${i} | ${main ? main.slice(0, 60) : "row"}${r.asWritten ? ` | ink: ${r.asWritten.slice(0, 80)}` : ""}${hint(r.page)}`,
+      );
+    });
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Parse the first balanced JSON object in a string. Locator responses
+ * sometimes carry trailing junk after the object (a duplicate copy or
+ * stray text), which breaks first-brace-to-last-brace extraction.
+ */
+function parseFirstJsonObject(text: string): Record<string, unknown> {
+  const start = text.indexOf("{");
+  if (start < 0) throw new Error("no JSON object in locator response");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return JSON.parse(text.slice(start, i + 1)) as Record<string, unknown>;
+      }
+    }
+  }
+  throw new Error("unterminated JSON object in locator response");
+}
+
+/**
+ * Last-resort recovery for a truncated locator response: pull out every
+ * complete flat {"key":...,"box_2d":[...]} object and drop the cut-off
+ * tail. A partial mapping still beats none for an approximate overlay.
+ */
+function salvageLocationObjects(text: string): Record<string, unknown> {
+  const fragments = text.match(/\{[^{}]*"key"[^{}]*"box_2d"[^{}]*\}/g) ?? [];
+  const locations: unknown[] = [];
+  for (const frag of fragments) {
+    try {
+      locations.push(JSON.parse(frag));
+    } catch {
+      // Skip the malformed fragment; neighbors are still usable.
+    }
+  }
+  if (locations.length === 0) {
+    throw new Error("no salvageable location objects in locator response");
+  }
+  return { locations };
+}
+
+/** One Gemini pass; throws on model/parse failure so callers can degrade. */
+export async function locateDisclosureSources(
+  contentBase64: string,
+  extraction: DisclosureExtraction,
+  log: ExtractionLog,
+): Promise<DisclosureSourceLocation[]> {
+  const inventory = buildLocateInventory(extraction);
+  if (!inventory) return [];
+  const call = async (): Promise<DisclosureSourceLocation[]> => {
+    const resp = await gemini.models.generateContent({
+      model: SECONDARY_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "application/pdf", data: contentBase64 } },
+            { text: `${LOCATE_SYSTEM}\n\nItems to locate:\n${inventory}` },
+          ],
+        },
+      ],
+      config: {
+        // Generous cap: thinking tokens share this budget, and running
+        // out mid-array is the locator's most common failure mode.
+        maxOutputTokens: 32768,
+        responseMimeType: "application/json",
+      },
+    });
+    const raw = resp.text ?? "";
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = extractJsonLoose(raw) as Record<string, unknown>;
+    } catch {
+      try {
+        parsed = parseFirstJsonObject(raw);
+      } catch {
+        parsed = salvageLocationObjects(raw);
+      }
+    }
+    // Convert Gemini's box_2d [ymin,xmin,ymax,xmax] 0-1000 into the stored
+    // normalized shape, then reuse the shared coercer for validation.
+    const candidates = arr(parsed.locations)
+      .slice(0, 300)
+      .map((item) => {
+        const o = (item ?? {}) as Record<string, unknown>;
+        const box = arr(o.box_2d).map((n) => Number(n));
+        if (box.length !== 4 || box.some((n) => !Number.isFinite(n))) return null;
+        const [ymin, xmin, ymax, xmax] = box;
+        return {
+          key: o.key,
+          page: o.page,
+          x0: xmin / 1000,
+          y0: ymin / 1000,
+          x1: xmax / 1000,
+          y1: ymax / 1000,
+        };
+      })
+      .filter((c) => c !== null);
+    // Deterministic repair for the model's most common geometry slip: on
+    // a sideways-stored page (content rotated 90/270), a table row is a
+    // tall narrow strip, but the model sometimes emits the row box with
+    // its axes transposed (reading-frame order). Its own per-page
+    // rotation report is far more reliable than its coordinate-frame
+    // discipline, so trust the report and swap contradicting row boxes.
+    const rotations = new Map<number, number>();
+    if (parsed.page_rotations && typeof parsed.page_rotations === "object") {
+      for (const [pg, deg] of Object.entries(parsed.page_rotations as Record<string, unknown>)) {
+        const p = Number(pg);
+        const d = Number(deg);
+        if (Number.isInteger(p) && (d === 0 || d === 90 || d === 180 || d === 270)) {
+          rotations.set(p, d);
+        }
+      }
+    }
+    for (const c of candidates) {
+      if (typeof c.key !== "string" || !/\.\d+$/.test(c.key)) continue;
+      const rot = rotations.get(Number(c.page));
+      if (rot !== 90 && rot !== 270) continue;
+      if (c.x1 - c.x0 > c.y1 - c.y0) {
+        const { x0, y0, x1, y1 } = c;
+        c.x0 = y0;
+        c.x1 = y1;
+        c.y0 = x0;
+        c.y1 = x1;
+      }
+    }
+    return locationsOf(candidates) ?? [];
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Source locating exceeded the 3-minute watchdog limit")),
+      LOCATE_TIMEOUT_MS,
+    );
+  });
+  const attempt = async (): Promise<DisclosureSourceLocation[]> => {
+    try {
+      return await call();
+    } catch (err) {
+      // Locator flakes are stochastic (truncated or junk-suffixed JSON);
+      // a second pass usually lands within seconds.
+      log.warn({ err }, "locator attempt failed; retrying once");
+      return call();
+    }
+  };
+  try {
+    const locations = await Promise.race([attempt(), timeout]);
+    log.info({ located: locations.length }, "source locating complete");
+    return locations;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Full dual-reader pipeline. Degrades gracefully: if the secondary reader or
  * the adjudication fails, the primary reading is returned with a warning.
@@ -972,6 +1251,20 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
       ]);
     } finally {
       if (timer) clearTimeout(timer);
+    }
+    // Best-effort locator pass: map items to page regions so the workbench
+    // can point at the ink. Never fails the reading.
+    if (geminiConfigured()) {
+      try {
+        await setPhase("locating");
+        extraction.locations = await locateDisclosureSources(
+          row.contentBase64,
+          extraction,
+          log,
+        );
+      } catch (err) {
+        log.warn({ err }, "source locating failed; keeping page-level provenance");
+      }
     }
     const updated = await db
       .update(disclosuresTable)
