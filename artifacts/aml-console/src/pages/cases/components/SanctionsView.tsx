@@ -4,11 +4,17 @@ import {
   SanctionsMatch,
   SanctionsScreenedName,
   SanctionsListMeta,
+  useGetSanctionsStatus,
+  useTriggerSanctionsRescreen,
+  getGetSanctionsStatusQueryKey,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ShieldAlert, ShieldCheck, ShieldX, Globe } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShieldAlert, ShieldCheck, ShieldX, Globe, RefreshCw, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 const TIER_BADGE: Record<string, string> = {
   exact: 'bg-red-500/15 text-red-400 border-red-500/40',
@@ -27,12 +33,171 @@ function fmtDate(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? 'unknown' : format(d, 'dd MMM yyyy HH:mm');
 }
 
-export function SanctionsView({ run }: { run: AnalysisRun }) {
+function agoLabel(iso: string | null | undefined): string {
+  if (!iso) return 'never';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return 'unknown';
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
+}
+
+export function SanctionsFreshnessCard({ onRescreened }: { onRescreened?: () => void }) {
+  // Waiting-for-sweep marker. Sweeps can finish faster than one poll cycle,
+  // so completion is detected by lastCheckAt moving past the kick time with
+  // sweeping off - never by waiting to observe the transient sweeping=true.
+  const [kickedAt, setKickedAt] = useState<number | null>(null);
+  const joinedRunningSweep = useRef(false);
+  const { data: status, dataUpdatedAt } = useGetSanctionsStatus({
+    query: {
+      queryKey: getGetSanctionsStatusQueryKey(),
+      refetchInterval: kickedAt != null ? 1500 : 60_000,
+    },
+  });
+  const rescreen = useTriggerSanctionsRescreen({
+    mutation: {
+      onSuccess: (ack) => {
+        // A sweep that was already in flight started before our click, so
+        // its lastCheckAt predates the watermark - complete on any fresh
+        // poll that shows it finished instead.
+        joinedRunningSweep.current = ack.alreadyRunning;
+        setKickedAt(Date.now());
+      },
+      onError: () => toast.error('Could not start the re-screen sweep.'),
+    },
+  });
+
+  const sweeping = status?.scheduler.sweeping ?? false;
+  const scheduler = status?.scheduler;
+  useEffect(() => {
+    if (kickedAt == null || !scheduler) return;
+    if (dataUpdatedAt < kickedAt) return; // cached emission from before the click
+    if (scheduler.sweeping) return;
+    const last = scheduler.lastCheckAt ? new Date(scheduler.lastCheckAt).getTime() : 0;
+    // 30s slack absorbs client/server clock drift.
+    if (!joinedRunningSweep.current && last < kickedAt - 30_000) return;
+    setKickedAt(null);
+    joinedRunningSweep.current = false;
+    if (scheduler.lastResult === 'rescreened') {
+      const n = scheduler.casesRescreened;
+      toast.success(`Re-screened ${n} case${n === 1 ? '' : 's'} against current lists`, { duration: 8000 });
+    } else if (scheduler.lastResult === 'up_to_date') {
+      toast.success('All screenings already match the current lists', { duration: 8000 });
+    } else {
+      toast.error(scheduler.lastError ?? 'Freshness check could not complete', { duration: 8000 });
+    }
+    onRescreened?.();
+  }, [scheduler, dataUpdatedAt, kickedAt, onRescreened]);
+
+  const busy = rescreen.isPending || sweeping || kickedAt != null;
+
+  const lists = status?.lists;
+  const sch = status?.scheduler;
+  const resultLabel = !sch
+    ? ''
+    : sch.lastResult === 'idle'
+      ? 'first check pending'
+      : sch.lastResult === 'up_to_date'
+        ? 'all screenings current'
+        : sch.lastResult === 'rescreened'
+          ? `re-screened ${sch.casesRescreened} case${sch.casesRescreened === 1 ? '' : 's'}`
+          : sch.lastResult === 'lists_unavailable'
+            ? 'lists unavailable at last check'
+            : 'check failed';
+
+  return (
+    <Card className="rounded-sm border-primary/25 bg-primary/[0.03]" data-testid="panel-sanctions-freshness">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            List freshness and auto re-screen
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 rounded-sm font-mono text-[10px] uppercase tracking-wider"
+            disabled={busy}
+            onClick={() => rescreen.mutate()}
+            data-testid="button-rescreen-now"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> Re-screening...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1.5" /> Check and re-screen now
+              </>
+            )}
+          </Button>
+        </div>
+        {!status ? (
+          <p className="text-xs font-mono text-muted-foreground">Loading list status...</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {lists && lists.state === 'ready' ? (
+                lists.lists.map((l) => (
+                  <div
+                    key={l.id}
+                    className="flex items-center justify-between gap-2 border border-border rounded-sm px-3 py-2 bg-background/40"
+                    data-testid={'row-freshness-' + l.id}
+                  >
+                    <span className="font-mono text-[11px] uppercase truncate">{LIST_LABEL[l.id] ?? l.id}</span>
+                    <span className="font-mono text-[11px] text-muted-foreground shrink-0">
+                      {l.entryCount.toLocaleString()} entries - {agoLabel(l.fetchedAt)}
+                      {l.stale && <span className="text-amber-400 ml-1.5">STALE COPY</span>}
+                    </span>
+                  </div>
+                ))
+              ) : lists?.state === 'loading' ? (
+                <p className="text-xs font-mono text-muted-foreground md:col-span-2">
+                  Downloading list updates in the background...
+                </p>
+              ) : (
+                <p className="text-xs font-mono text-red-400 md:col-span-2">
+                  List refresh failing: {lists?.error ?? 'unknown error'}
+                </p>
+              )}
+            </div>
+            {sch && (
+              <p className="text-[11px] font-mono text-muted-foreground" data-testid="text-scheduler-status">
+                Auto check every {sch.intervalHours} h - last check {agoLabel(sch.lastCheckAt)} - {resultLabel}
+                {sch.lastResult === 'error' && sch.lastError ? ` (${sch.lastError.slice(0, 120)})` : ''}
+              </p>
+            )}
+            {sch && sch.lastChanges.length > 0 && (
+              <div className="border border-amber-500/40 bg-amber-500/5 rounded-sm px-3 py-2">
+                <p className="text-[11px] font-mono text-amber-400 uppercase tracking-wider mb-1">
+                  Match totals changed on last sweep
+                </p>
+                {sch.lastChanges.map((c, i) => (
+                  <p key={i} className="text-[11px] font-mono text-muted-foreground">
+                    CASE-{c.caseId} RUN-{c.runId}:{' '}
+                    {c.before ? `${c.before.exact}/${c.before.strong}/${c.before.possible}` : 'unscreened'} to{' '}
+                    {c.after.exact}/{c.after.strong}/{c.after.possible} (exact/strong/possible)
+                  </p>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SanctionsView({ run, onRescreened }: { run: AnalysisRun; onRescreened?: () => void }) {
   const screening = (run.sanctionsScreening ?? null) as SanctionsScreening | null;
 
   if (!screening) {
     return (
-      <Card className="rounded-sm border-border bg-muted/20">
+      <div className="space-y-4">
+        <SanctionsFreshnessCard onRescreened={onRescreened} />
+        <Card className="rounded-sm border-border bg-muted/20">
         <CardContent className="p-10 text-center">
           <ShieldAlert className="h-10 w-10 mx-auto text-muted-foreground opacity-60 mb-4" />
           <div className="font-mono text-sm uppercase tracking-widest mb-2">Not Screened</div>
@@ -42,13 +207,16 @@ export function SanctionsView({ run }: { run: AnalysisRun }) {
             Consolidated lists.
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     );
   }
 
   if (screening.status === 'unavailable') {
     return (
-      <Card className="rounded-sm border-red-500/40 bg-red-500/5">
+      <div className="space-y-4">
+        <SanctionsFreshnessCard onRescreened={onRescreened} />
+        <Card className="rounded-sm border-red-500/40 bg-red-500/5">
         <CardContent className="p-8">
           <div className="flex items-start gap-4">
             <ShieldX className="h-8 w-8 text-red-400 shrink-0 mt-1" />
@@ -64,7 +232,8 @@ export function SanctionsView({ run }: { run: AnalysisRun }) {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     );
   }
 
@@ -73,6 +242,7 @@ export function SanctionsView({ run }: { run: AnalysisRun }) {
 
   return (
     <div className="space-y-4">
+      <SanctionsFreshnessCard onRescreened={onRescreened} />
       {/* Verdict banner */}
       {clean ? (
         <Card className="rounded-sm border-emerald-500/40 bg-emerald-500/5">

@@ -15,3 +15,5 @@
 - [Tester console noise](tester-console-noise.md) — long-lived tester browsers accumulate stale HMR errors; hard-reload before treating console errors as real bugs.
 - [Publish promote debugging](deploy-debugging.md) — build log dying at "Creating Autoscale service" +5min = candidate never ready; its logs are never surfaced — replicate prod boot locally to split app vs platform.
 - [Late-mount measurement](late-mount-measurement.md) — ResizeObserver hooks need callback refs when the div mounts after loading gates; else silent 0x0 canvas. Screenshot results carry console.log output.
+- [Async job polling](async-job-polling.md) — poll-driven UIs must detect job completion via timestamp watermark, not transient busy-flag transitions; sub-poll-interval jobs never show busy.
+- [Methodology copy honesty](methodology-copy-honesty.md) — "how it works" copy gets fact-checked against engine source; red-flag words: calibrated, every, only; dark image sections need literal light colors.

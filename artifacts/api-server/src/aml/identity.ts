@@ -179,11 +179,30 @@ export function buildIdentityIndex(raws: Iterable<string | null | undefined>): I
   };
   for (const k of nodes.keys()) parent.set(k, k);
 
+  // Token-blocked pairing: namesLikelySame can only merge names sharing a
+  // substantive token, so comparing within shared-token buckets yields the
+  // exact same unions as all-pairs while staying near-linear as the
+  // portfolio grows (this index is also built globally across cases).
   const nameNodes = [...nodes.values()].filter((n) => n.kind === "name");
-  for (let i = 0; i < nameNodes.length; i++) {
-    for (let j = i + 1; j < nameNodes.length; j++) {
-      if (namesLikelySame(nameNodes[i]!.tokens, nameNodes[j]!.tokens)) {
-        union(nameNodes[i]!.key, nameNodes[j]!.key);
+  const byToken = new Map<string, Node[]>();
+  for (const n of nameNodes) {
+    for (const t of n.tokens) {
+      if (!isSubstantive(t)) continue;
+      const arr = byToken.get(t);
+      if (arr) arr.push(n);
+      else byToken.set(t, [n]);
+    }
+  }
+  const compared = new Set<string>();
+  for (const bucket of byToken.values()) {
+    for (let i = 0; i < bucket.length; i++) {
+      for (let j = i + 1; j < bucket.length; j++) {
+        const a = bucket[i]!;
+        const b = bucket[j]!;
+        const pairKey = a.key < b.key ? `${a.key}\u0000${b.key}` : `${b.key}\u0000${a.key}`;
+        if (compared.has(pairKey)) continue;
+        compared.add(pairKey);
+        if (namesLikelySame(a.tokens, b.tokens)) union(a.key, b.key);
       }
     }
   }

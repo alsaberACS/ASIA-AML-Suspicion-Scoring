@@ -33,6 +33,7 @@ export const analysisRunsTable = pgTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    dataQualityReport: jsonb("data_quality_report").$type<unknown>(),
     txnCount: integer("txn_count").notNull(),
     totalCreditsKwd: doublePrecision("total_credits_kwd").notNull(),
     totalDebitsKwd: doublePrecision("total_debits_kwd").notNull(),
@@ -77,6 +78,7 @@ export const analysisRunsTable = pgTable(
     aiInvestigation: jsonb("ai_investigation").$type<unknown>(),
     caseMemo: text("case_memo"),
     aiProgress: jsonb("ai_progress").$type<unknown>(),
+    aiVerification: jsonb("ai_verification").$type<unknown>(),
     sanctionsScreening: jsonb("sanctions_screening").$type<unknown>(),
     profilePrediction: jsonb("profile_prediction").$type<unknown>(),
     disclosureReconciliation: jsonb("disclosure_reconciliation").$type<unknown>(),

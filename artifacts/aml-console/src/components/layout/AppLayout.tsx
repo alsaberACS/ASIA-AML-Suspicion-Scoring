@@ -8,6 +8,9 @@ import {
   Search,
   Check,
   LockKeyhole,
+  Target,
+  Share2,
+  BookOpenText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +32,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/cases', label: 'Case Registry', icon: FolderSearch },
+    { href: '/rules', label: 'Rule Performance', icon: Target },
+    { href: '/intel', label: 'Counterparty Intel', icon: Share2 },
+    { href: '/about', label: 'About the Application', icon: BookOpenText },
   ];
 
   return (
@@ -36,10 +42,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <div className="w-64 border-r border-border bg-card flex flex-col z-10 shadow-xl relative">
         <div className="h-16 flex items-center px-6 border-b border-border bg-background/50">
+          {/* Same wordmark in two inks; CSS shows the right one per theme. */}
           <img
             src={import.meta.env.BASE_URL + 'brand/asia-logo-white.png'}
             alt="ASIA Data-Science"
-            className="h-7 w-auto object-contain"
+            className="h-7 w-auto object-contain brand-logo-on-dark"
+          />
+          <img
+            src={import.meta.env.BASE_URL + 'brand/asia-logo-navy.png'}
+            alt="ASIA Data-Science"
+            className="h-7 w-auto object-contain brand-logo-on-light"
           />
         </div>
 

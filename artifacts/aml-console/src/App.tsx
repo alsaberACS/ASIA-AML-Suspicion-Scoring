@@ -5,6 +5,9 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import RulePerformancePage from '@/pages/analytics/RulePerformance';
+import CounterpartyIntelPage from '@/pages/analytics/CounterpartyIntel';
+import AboutPage from '@/pages/about/AboutPage';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import CaseList from '@/pages/cases/CaseList';
@@ -22,6 +25,9 @@ function Router() {
       <RoutedErrorBoundary>
         <Switch>
           <Route path="/" component={Dashboard} />
+          <Route path="/rules" component={RulePerformancePage} />
+          <Route path="/intel" component={CounterpartyIntelPage} />
+          <Route path="/about" component={AboutPage} />
           <Route path="/cases" component={CaseList} />
           <Route path="/cases/:id/disclosure" component={CaseDisclosureWorkbench} />
           <Route path="/cases/:id/network" component={CaseNetwork} />
@@ -56,7 +62,7 @@ function App() {
         ) : (
           <Landing onUnlock={() => setUnlocked(true)} />
         )}
-        <Toaster theme="dark" />
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );

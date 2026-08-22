@@ -2,6 +2,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, analysisRunsTable, casesTable, transactionsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { runAiVerification } from "./ai-verification";
 import type { ForcedMapping } from "./parse";
 import type {
   FeatureValue,
@@ -317,10 +318,18 @@ function coerceFindings(raw: unknown, validIds: Set<number>): unknown[] {
       present: ENUM(o.present, ["yes", "partial", "no"] as const, "no"),
       strength: ENUM(o.strength, ["weak", "moderate", "strong"] as const, "weak"),
       reasoning: String(o.reasoning ?? ""),
-      supportingTxnIds: (Array.isArray(o.supportingTxnIds) ? o.supportingTxnIds : [])
-        .map((n) => Number(n))
-        .filter((n) => validIds.has(n))
-        .slice(0, 25),
+      // Split citations instead of silently dropping invented ids: rejected
+      // ones persist so evidence verification can count and surface them.
+      ...(() => {
+        const cited = (Array.isArray(o.supportingTxnIds) ? o.supportingTxnIds : [])
+          .map((n) => Number(n))
+          .filter((n) => Number.isFinite(n))
+          .slice(0, 25);
+        return {
+          supportingTxnIds: cited.filter((n) => validIds.has(n)),
+          rejectedTxnIds: cited.filter((n) => !validIds.has(n)),
+        };
+      })(),
       supportingFeatures: (Array.isArray(o.supportingFeatures) ? o.supportingFeatures : [])
         .slice(0, 8)
         .map((s) => {
@@ -913,6 +922,10 @@ RECOMMENDED NEXT STEPS (concrete, in priority order)${disclosureReconciliation ?
         .set({ aiStatus: "complete", aiError: null })
         .where(eq(analysisRunsTable.id, runId));
     }
+    // Deterministic re-check of every citation the AI made. Non-fatal.
+    await runAiVerification(runId).catch((err) =>
+      log.warn({ err }, "AI evidence verification failed (non-fatal)"),
+    );
     log.info("AI layers complete");
   } catch (err) {
     log.error({ err }, "AI layers failed");

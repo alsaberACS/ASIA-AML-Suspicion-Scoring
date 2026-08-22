@@ -623,3 +623,30 @@ export async function screenCase(subjectName: string, txns: Txn[]): Promise<Sanc
     totals,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Freshness status (for the scheduler and status endpoint)           */
+/* ------------------------------------------------------------------ */
+
+export interface SanctionsIndexStatus {
+  state: "ready" | "loading" | "error";
+  error: string | null;
+  lists: SanctionsListMeta[];
+}
+
+/**
+ * Non-blocking view of the shared list index. Kicks a (re)load if the cached
+ * index is past TTL, but reports "loading" rather than blocking beyond waitMs.
+ */
+export async function getSanctionsIndexStatus(waitMs = 5_000): Promise<SanctionsIndexStatus> {
+  try {
+    const idx = await withDeadline(getIndex(), waitMs, "Sanctions list load");
+    return { state: "ready", error: null, lists: idx.lists };
+  } catch (err) {
+    return {
+      state: indexPromise ? "loading" : "error",
+      error: err instanceof Error ? err.message : String(err),
+      lists: [],
+    };
+  }
+}

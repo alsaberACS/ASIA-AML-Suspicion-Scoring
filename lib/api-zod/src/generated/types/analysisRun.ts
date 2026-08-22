@@ -7,12 +7,14 @@
  */
 import type { AiInvestigation } from './aiInvestigation';
 import type { AiProgress } from './aiProgress';
+import type { AiVerification } from './aiVerification';
 import type { AnalysisRunAiStatus } from './analysisRunAiStatus';
 import type { AnalysisRunBand } from './analysisRunBand';
 import type { AnalysisRunStatus } from './analysisRunStatus';
 import type { BandThreshold } from './bandThreshold';
 import type { BankBreakdown } from './bankBreakdown';
 import type { BenignScenario } from './benignScenario';
+import type { DataQualityReport } from './dataQualityReport';
 import type { DisclosureReconciliation } from './disclosureReconciliation';
 import type { Disposition } from './disposition';
 import type { Driver } from './driver';
@@ -68,6 +70,8 @@ export interface AnalysisRun {
   aiProgress?: AiProgress | null;
   sanctionsScreening?: SanctionsScreening | null;
   profilePrediction?: ProfilePrediction | null;
+  dataQualityReport?: DataQualityReport | null;
+  aiVerification?: AiVerification | null;
   disclosureReconciliation?: DisclosureReconciliation | null;
   disposition?: Disposition | null;
 }

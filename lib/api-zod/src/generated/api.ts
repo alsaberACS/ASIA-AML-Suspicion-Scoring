@@ -427,6 +427,7 @@ export const AnalyzeCaseResponse = zod.object({
   "strength": zod.enum(['weak', 'moderate', 'strong']),
   "reasoning": zod.string(),
   "supportingTxnIds": zod.array(zod.int()),
+  "rejectedTxnIds": zod.array(zod.int()).optional().describe('Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed)'),
   "supportingFeatures": zod.array(zod.object({
   "feature": zod.string(),
   "value": zod.number(),
@@ -560,6 +561,42 @@ export const AnalyzeCaseResponse = zod.object({
   "confidence": zod.enum(['low', 'medium', 'high']),
   "rationale": zod.string()
 }),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "dataQualityReport": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "score": zod.number(),
+  "filesAssessed": zod.int(),
+  "txnsAssessed": zod.int(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "status": zod.enum(['pass', 'warn', 'fail']),
+  "summary": zod.string(),
+  "items": zod.array(zod.string()),
+  "txnIds": zod.array(zod.int())
+})),
+  "files": zod.array(zod.object({
+  "bankLabel": zod.string(),
+  "filename": zod.string(),
+  "rowsParsed": zod.int(),
+  "rowsSkipped": zod.int(),
+  "dataQuality": zod.number(),
+  "periodStart": zod.string().nullable(),
+  "periodEnd": zod.string().nullable()
+}))
+}),zod.null()]).optional(),
+  "aiVerification": zod.union([zod.object({
+  "verifiedAt": zod.string(),
+  "overall": zod.enum(['verified', 'issues']),
+  "totalChecked": zod.int(),
+  "totalValid": zod.int(),
+  "sections": zod.array(zod.object({
+  "section": zod.string(),
+  "label": zod.string(),
+  "citationsChecked": zod.int(),
+  "citationsValid": zod.int(),
+  "issues": zod.array(zod.string())
+}))
 }),zod.null()]).optional(),
   "disclosureReconciliation": zod.union([zod.object({
   "generatedAt": zod.string(),
@@ -705,6 +742,7 @@ export const GetLatestAnalysisResponse = zod.object({
   "strength": zod.enum(['weak', 'moderate', 'strong']),
   "reasoning": zod.string(),
   "supportingTxnIds": zod.array(zod.int()),
+  "rejectedTxnIds": zod.array(zod.int()).optional().describe('Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed)'),
   "supportingFeatures": zod.array(zod.object({
   "feature": zod.string(),
   "value": zod.number(),
@@ -839,6 +877,42 @@ export const GetLatestAnalysisResponse = zod.object({
   "rationale": zod.string()
 }),zod.null()]).optional()
 }),zod.null()]).optional(),
+  "dataQualityReport": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "score": zod.number(),
+  "filesAssessed": zod.int(),
+  "txnsAssessed": zod.int(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "status": zod.enum(['pass', 'warn', 'fail']),
+  "summary": zod.string(),
+  "items": zod.array(zod.string()),
+  "txnIds": zod.array(zod.int())
+})),
+  "files": zod.array(zod.object({
+  "bankLabel": zod.string(),
+  "filename": zod.string(),
+  "rowsParsed": zod.int(),
+  "rowsSkipped": zod.int(),
+  "dataQuality": zod.number(),
+  "periodStart": zod.string().nullable(),
+  "periodEnd": zod.string().nullable()
+}))
+}),zod.null()]).optional(),
+  "aiVerification": zod.union([zod.object({
+  "verifiedAt": zod.string(),
+  "overall": zod.enum(['verified', 'issues']),
+  "totalChecked": zod.int(),
+  "totalValid": zod.int(),
+  "sections": zod.array(zod.object({
+  "section": zod.string(),
+  "label": zod.string(),
+  "citationsChecked": zod.int(),
+  "citationsValid": zod.int(),
+  "issues": zod.array(zod.string())
+}))
+}),zod.null()]).optional(),
   "disclosureReconciliation": zod.union([zod.object({
   "generatedAt": zod.string(),
   "summary": zod.string(),
@@ -865,6 +939,129 @@ export const GetLatestAnalysisResponse = zod.object({
 })),zod.null()]).optional(),
   "createdAt": zod.string()
 }),zod.null()]).optional()
+})
+
+
+/**
+ * @summary List all analysis runs for a case (lightweight, newest first)
+ */
+export const ListAnalysisRunsParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const ListAnalysisRunsResponseItem = zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "createdAt": zod.string(),
+  "probability": zod.number(),
+  "band": zod.string(),
+  "aiStatus": zod.enum(['pending', 'running', 'complete', 'failed', 'skipped']),
+  "dataQualityScore": zod.number(),
+  "txnCount": zod.int(),
+  "rulesFired": zod.int()
+})
+export const ListAnalysisRunsResponse = zod.array(ListAnalysisRunsResponseItem)
+
+
+/**
+ * @summary Cross-case rule performance (fired counts vs analyst dispositions on latest runs)
+ */
+export const GetRulePerformanceResponse = zod.object({
+  "casesAssessed": zod.int(),
+  "casesDecided": zod.int(),
+  "rules": zod.array(zod.object({
+  "ruleId": zod.string(),
+  "title": zod.string(),
+  "severity": zod.string(),
+  "typologyName": zod.string(),
+  "weightLogLr": zod.number(),
+  "casesFired": zod.int(),
+  "escalate": zod.int(),
+  "watchlist": zod.int(),
+  "close": zod.int(),
+  "undecided": zod.int()
+}))
+})
+
+
+/**
+ * @summary Counterparties shared across cases (global identity clustering)
+ */
+export const GetCounterpartyIntelResponse = zod.object({
+  "casesCovered": zod.int(),
+  "txnsScanned": zod.int(),
+  "sharedCount": zod.int(),
+  "clusters": zod.array(zod.object({
+  "key": zod.string(),
+  "display": zod.string(),
+  "kind": zod.enum(['name', 'account_ref', 'instapay_ref']),
+  "caseCount": zod.int(),
+  "totalTxns": zod.int(),
+  "totalKwd": zod.number(),
+  "subjectOfCaseIds": zod.array(zod.int()),
+  "cases": zod.array(zod.object({
+  "caseId": zod.int(),
+  "subjectName": zod.string(),
+  "caseStatus": zod.string(),
+  "txnCount": zod.int(),
+  "totalKwd": zod.number(),
+  "inflowKwd": zod.number(),
+  "outflowKwd": zod.number(),
+  "flaggedCount": zod.int()
+}))
+}))
+})
+
+
+/**
+ * @summary Sanctions list freshness and auto re-screen scheduler status
+ */
+export const GetSanctionsStatusResponse = zod.object({
+  "lists": zod.object({
+  "state": zod.enum(['ready', 'loading', 'error']),
+  "error": zod.string().nullable(),
+  "lists": zod.array(zod.object({
+  "id": zod.enum(['ofac_sdn', 'un_consolidated']),
+  "label": zod.string(),
+  "fetchedAt": zod.string(),
+  "stale": zod.boolean(),
+  "entryCount": zod.int()
+}))
+}),
+  "scheduler": zod.object({
+  "running": zod.boolean(),
+  "sweeping": zod.boolean(),
+  "intervalHours": zod.number(),
+  "lastCheckAt": zod.string().nullable(),
+  "nextCheckAt": zod.string().nullable(),
+  "lastResult": zod.enum(['idle', 'up_to_date', 'rescreened', 'lists_unavailable', 'error']),
+  "lastError": zod.string().nullable(),
+  "lastRescreenAt": zod.string().nullable(),
+  "casesRescreened": zod.int(),
+  "lastChanges": zod.array(zod.object({
+  "caseId": zod.int(),
+  "runId": zod.int(),
+  "before": zod.union([zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+}),zod.null()]),
+  "after": zod.object({
+  "exact": zod.int(),
+  "strong": zod.int(),
+  "possible": zod.int()
+})
+}))
+})
+})
+
+
+/**
+ * @summary Force an immediate freshness check and portfolio re-screen
+ */
+export const TriggerSanctionsRescreenResponse = zod.object({
+  "started": zod.boolean(),
+  "alreadyRunning": zod.boolean()
 })
 
 
@@ -983,6 +1180,7 @@ export const GetAnalysisRunResponse = zod.object({
   "strength": zod.enum(['weak', 'moderate', 'strong']),
   "reasoning": zod.string(),
   "supportingTxnIds": zod.array(zod.int()),
+  "rejectedTxnIds": zod.array(zod.int()).optional().describe('Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed)'),
   "supportingFeatures": zod.array(zod.object({
   "feature": zod.string(),
   "value": zod.number(),
@@ -1116,6 +1314,42 @@ export const GetAnalysisRunResponse = zod.object({
   "confidence": zod.enum(['low', 'medium', 'high']),
   "rationale": zod.string()
 }),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "dataQualityReport": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "score": zod.number(),
+  "filesAssessed": zod.int(),
+  "txnsAssessed": zod.int(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "status": zod.enum(['pass', 'warn', 'fail']),
+  "summary": zod.string(),
+  "items": zod.array(zod.string()),
+  "txnIds": zod.array(zod.int())
+})),
+  "files": zod.array(zod.object({
+  "bankLabel": zod.string(),
+  "filename": zod.string(),
+  "rowsParsed": zod.int(),
+  "rowsSkipped": zod.int(),
+  "dataQuality": zod.number(),
+  "periodStart": zod.string().nullable(),
+  "periodEnd": zod.string().nullable()
+}))
+}),zod.null()]).optional(),
+  "aiVerification": zod.union([zod.object({
+  "verifiedAt": zod.string(),
+  "overall": zod.enum(['verified', 'issues']),
+  "totalChecked": zod.int(),
+  "totalValid": zod.int(),
+  "sections": zod.array(zod.object({
+  "section": zod.string(),
+  "label": zod.string(),
+  "citationsChecked": zod.int(),
+  "citationsValid": zod.int(),
+  "issues": zod.array(zod.string())
+}))
 }),zod.null()]).optional(),
   "disclosureReconciliation": zod.union([zod.object({
   "generatedAt": zod.string(),
@@ -1294,6 +1528,7 @@ export const RetryAiAnalysisResponse = zod.object({
   "strength": zod.enum(['weak', 'moderate', 'strong']),
   "reasoning": zod.string(),
   "supportingTxnIds": zod.array(zod.int()),
+  "rejectedTxnIds": zod.array(zod.int()).optional().describe('Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed)'),
   "supportingFeatures": zod.array(zod.object({
   "feature": zod.string(),
   "value": zod.number(),
@@ -1427,6 +1662,42 @@ export const RetryAiAnalysisResponse = zod.object({
   "confidence": zod.enum(['low', 'medium', 'high']),
   "rationale": zod.string()
 }),zod.null()]).optional()
+}),zod.null()]).optional(),
+  "dataQualityReport": zod.union([zod.object({
+  "generatedAt": zod.string(),
+  "score": zod.number(),
+  "filesAssessed": zod.int(),
+  "txnsAssessed": zod.int(),
+  "checks": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "status": zod.enum(['pass', 'warn', 'fail']),
+  "summary": zod.string(),
+  "items": zod.array(zod.string()),
+  "txnIds": zod.array(zod.int())
+})),
+  "files": zod.array(zod.object({
+  "bankLabel": zod.string(),
+  "filename": zod.string(),
+  "rowsParsed": zod.int(),
+  "rowsSkipped": zod.int(),
+  "dataQuality": zod.number(),
+  "periodStart": zod.string().nullable(),
+  "periodEnd": zod.string().nullable()
+}))
+}),zod.null()]).optional(),
+  "aiVerification": zod.union([zod.object({
+  "verifiedAt": zod.string(),
+  "overall": zod.enum(['verified', 'issues']),
+  "totalChecked": zod.int(),
+  "totalValid": zod.int(),
+  "sections": zod.array(zod.object({
+  "section": zod.string(),
+  "label": zod.string(),
+  "citationsChecked": zod.int(),
+  "citationsValid": zod.int(),
+  "issues": zod.array(zod.string())
+}))
 }),zod.null()]).optional(),
   "disclosureReconciliation": zod.union([zod.object({
   "generatedAt": zod.string(),

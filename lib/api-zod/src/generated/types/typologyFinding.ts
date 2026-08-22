@@ -16,6 +16,8 @@ export interface TypologyFinding {
   strength: TypologyFindingStrength;
   reasoning: string;
   supportingTxnIds: number[];
+  /** Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed) */
+  rejectedTxnIds?: number[];
   supportingFeatures: SupportingFeature[];
   benignExplanationsPossible: string[];
 }

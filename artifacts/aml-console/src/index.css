@@ -335,6 +335,166 @@
   --chart-3: 230 70% 62%;
 }
 
+/* ---------------------------------------------------------------------------
+   Light theme family ("white levels"). Unlike the dark variants above, these
+   must also flip the shared chrome: foregrounds turn dark, hover elevation
+   darkens instead of lightens, component borders darken (negative intensity),
+   and shadows soften. Destructive red still never restyles.
+   --------------------------------------------------------------------------- */
+
+:root[data-theme='paper'],
+:root[data-theme='light'],
+:root[data-theme='mist'] {
+  --button-outline: rgba(0, 0, 0, 0.1);
+  --badge-outline: rgba(0, 0, 0, 0.05);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(0, 0, 0, 0.03);
+  --elevate-2: rgba(0, 0, 0, 0.07);
+
+  --foreground: 222 47% 11%;
+  --card-foreground: 222 47% 11%;
+  --popover-foreground: 222 47% 11%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-accent-foreground: 222 47% 11%;
+  --accent-foreground: 222 47% 11%;
+  --primary-foreground: 0 0% 100%;
+  --sidebar-primary-foreground: 0 0% 100%;
+
+  --shadow-2xs: 0px 1px 2px 0px rgba(15, 23, 42, 0.06);
+  --shadow-xs: 0px 2px 4px 0px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0px 4px 8px -2px rgba(15, 23, 42, 0.08);
+  --shadow: 0px 8px 16px -4px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0px 12px 24px -6px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0px 16px 32px -8px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0px 24px 48px -12px rgba(15, 23, 42, 0.14);
+  --shadow-2xl: 0px 32px 64px -16px rgba(15, 23, 42, 0.18);
+}
+
+/* Level 1: pure white, maximum brightness. */
+:root[data-theme='paper'] {
+  --background: 0 0% 100%;
+  --border: 214 20% 86%;
+  --card: 0 0% 100%;
+  --card-border: 214 20% 88%;
+  --sidebar: 210 20% 98%;
+  --sidebar-border: 214 20% 88%;
+  --sidebar-primary: 190 95% 29%;
+  --sidebar-accent: 210 20% 92%;
+  --sidebar-ring: 190 95% 29%;
+  --popover: 0 0% 100%;
+  --popover-border: 214 20% 86%;
+  --primary: 190 95% 29%;
+  --secondary: 190 60% 92%;
+  --secondary-foreground: 190 95% 24%;
+  --muted: 210 20% 94%;
+  --muted-foreground: 215 18% 42%;
+  --accent: 210 22% 90%;
+  --input: 214 20% 82%;
+  --ring: 190 95% 29%;
+  --chart-1: 190 95% 34%;
+  --chart-2: 215 75% 46%;
+  --chart-3: 170 75% 30%;
+  --chart-4: 280 55% 48%;
+  --chart-5: 340 70% 44%;
+}
+
+/* Level 2: soft off-white surfaces, white panels. */
+:root[data-theme='light'] {
+  --background: 210 30% 96%;
+  --border: 214 22% 84%;
+  --card: 0 0% 100%;
+  --card-border: 214 22% 86%;
+  --sidebar: 210 26% 92%;
+  --sidebar-border: 214 22% 84%;
+  --sidebar-primary: 190 95% 29%;
+  --sidebar-accent: 210 24% 86%;
+  --sidebar-ring: 190 95% 29%;
+  --popover: 0 0% 100%;
+  --popover-border: 214 22% 84%;
+  --primary: 190 95% 29%;
+  --secondary: 190 55% 90%;
+  --secondary-foreground: 190 95% 24%;
+  --muted: 210 22% 90%;
+  --muted-foreground: 215 18% 40%;
+  --accent: 210 24% 86%;
+  --input: 214 20% 80%;
+  --ring: 190 95% 29%;
+  --chart-1: 190 95% 34%;
+  --chart-2: 215 75% 46%;
+  --chart-3: 170 75% 30%;
+  --chart-4: 280 55% 48%;
+  --chart-5: 340 70% 44%;
+}
+
+/* Brand wordmark: the white PNG vanishes on light surfaces, so the sidebar
+   renders both inks and the active theme picks one. */
+.brand-logo-on-light {
+  display: none;
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .brand-logo-on-dark {
+  display: none;
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .brand-logo-on-light {
+  display: block;
+}
+
+/* Status text hardcoded at Tailwind 400-level (red/amber/emerald/orange)
+   reads well on dark but washes out on light surfaces. DELIBERATE GLOBAL
+   OVERRIDE: these unlayered rules outrank the Tailwind utilities layer in
+   every light theme, so plain utilities cannot undo them - a component that
+   needs a different light-theme status color must use its own data-theme
+   scoped rule. When introducing a new 300/400-level status text utility (or
+   alpha variant), add it here; the list mirrors actual usage in src. */
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-red-400 {
+  color: rgb(220 38 38);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-red-400\/90 {
+  color: rgb(220 38 38 / 0.9);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-red-400\/80 {
+  color: rgb(220 38 38 / 0.8);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-amber-400 {
+  color: rgb(180 83 9);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-amber-400\/90 {
+  color: rgb(180 83 9 / 0.9);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-emerald-400 {
+  color: rgb(5 150 105);
+}
+:root:is([data-theme='paper'], [data-theme='light'], [data-theme='mist']) .text-orange-400 {
+  color: rgb(194 65 12);
+}
+
+/* Level 3: muted gray-blue light, lowest glare. */
+:root[data-theme='mist'] {
+  --background: 215 22% 90%;
+  --border: 215 18% 78%;
+  --card: 213 24% 95%;
+  --card-border: 215 18% 80%;
+  --sidebar: 214 22% 87%;
+  --sidebar-border: 215 18% 78%;
+  --sidebar-primary: 191 90% 28%;
+  --sidebar-accent: 214 18% 81%;
+  --sidebar-ring: 191 90% 28%;
+  --popover: 213 24% 95%;
+  --popover-border: 215 18% 78%;
+  --primary: 191 90% 28%;
+  --secondary: 194 42% 84%;
+  --secondary-foreground: 192 90% 21%;
+  --muted: 214 18% 84%;
+  --muted-foreground: 216 16% 38%;
+  --accent: 214 18% 80%;
+  --input: 215 18% 74%;
+  --ring: 191 90% 28%;
+  --chart-1: 191 90% 30%;
+  --chart-2: 215 70% 42%;
+  --chart-3: 170 75% 27%;
+  --chart-4: 280 50% 44%;
+  --chart-5: 340 65% 40%;
+}
+
 /* Soft attention pulse for transaction flag chips (EvidencePack). Uses
    currentColor so the glow follows the chip's severity/destructive color
    in every theme. Disabled for users who prefer reduced motion. */

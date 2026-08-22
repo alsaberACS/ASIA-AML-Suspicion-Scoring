@@ -8,6 +8,7 @@ import {
   DownloadAnalysisReportParams,
   GetAnalysisRunParams,
   GetLatestAnalysisParams,
+  ListAnalysisRunsParams,
   RetryAiAnalysisParams,
 } from "@workspace/api-zod";
 import { runAnalysis } from "../aml/pipeline";
@@ -47,6 +48,43 @@ router.get(
       .from(dispositionsTable)
       .where(eq(dispositionsTable.runId, run.id));
     res.json(runToApi(run, disp[0] ?? null));
+  }),
+);
+
+router.get(
+  "/cases/:caseId/analysis-runs",
+  h(async (req, res) => {
+    const { caseId } = ListAnalysisRunsParams.parse(req.params);
+    const rows = await db
+      .select({
+        id: analysisRunsTable.id,
+        caseId: analysisRunsTable.caseId,
+        createdAt: analysisRunsTable.createdAt,
+        probability: analysisRunsTable.probability,
+        band: analysisRunsTable.band,
+        aiStatus: analysisRunsTable.aiStatus,
+        dataQualityScore: analysisRunsTable.dataQualityScore,
+        txnCount: analysisRunsTable.txnCount,
+        ruleHits: analysisRunsTable.ruleHits,
+      })
+      .from(analysisRunsTable)
+      .where(eq(analysisRunsTable.caseId, caseId))
+      .orderBy(desc(analysisRunsTable.createdAt), desc(analysisRunsTable.id));
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        caseId: r.caseId,
+        createdAt: r.createdAt.toISOString(),
+        probability: r.probability,
+        band: r.band,
+        aiStatus: r.aiStatus,
+        dataQualityScore: r.dataQualityScore,
+        txnCount: r.txnCount,
+        rulesFired: Array.isArray(r.ruleHits)
+          ? r.ruleHits.filter((h) => (h as { fired?: boolean }).fired === true).length
+          : 0,
+      })),
+    );
   }),
 );
 

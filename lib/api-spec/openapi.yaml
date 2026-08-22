@@ -233,6 +233,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiMessage"
+  /cases/{caseId}/analysis-runs:
+    get:
+      operationId: listAnalysisRuns
+      tags: [analysis]
+      summary: List all analysis runs for a case (lightweight, newest first)
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Run summaries, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalysisRunSummary"
+  /analytics/rule-performance:
+    get:
+      operationId: getRulePerformance
+      tags: [analysis]
+      summary: Cross-case rule performance (fired counts vs analyst dispositions on latest runs)
+      responses:
+        "200":
+          description: Per-rule aggregates across all cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RulePerformanceReport"
+  /analytics/counterparty-intel:
+    get:
+      operationId: getCounterpartyIntel
+      tags: [analysis]
+      summary: Counterparties shared across cases (global identity clustering)
+      responses:
+        "200":
+          description: Clusters of the same real-world party appearing in two or more cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CounterpartyIntelReport"
+  /sanctions/status:
+    get:
+      operationId: getSanctionsStatus
+      tags: [analysis]
+      summary: Sanctions list freshness and auto re-screen scheduler status
+      responses:
+        "200":
+          description: Current list index state and scheduler telemetry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SanctionsStatus"
+  /sanctions/rescreen:
+    post:
+      operationId: triggerSanctionsRescreen
+      tags: [analysis]
+      summary: Force an immediate freshness check and portfolio re-screen
+      responses:
+        "202":
+          description: Sweep started (or one was already running)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SanctionsRescreenAck"
   /analysis-runs/{runId}:
     get:
       operationId: getAnalysisRun
@@ -838,6 +902,10 @@ components:
         supportingTxnIds:
           type: array
           items: { type: integer }
+        rejectedTxnIds:
+          description: Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed)
+          type: array
+          items: { type: integer }
         supportingFeatures:
           type: array
           items:
@@ -876,6 +944,204 @@ components:
         targetFinding: { type: string }
         objection: { type: string }
         severity: { type: string, enum: [high, medium, low] }
+    AnalysisRunSummary:
+      type: object
+      required: [id, caseId, createdAt, probability, band, aiStatus, dataQualityScore, txnCount, rulesFired]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        createdAt: { type: string }
+        probability: { type: number }
+        band: { type: string }
+        aiStatus: { type: string, enum: [pending, running, complete, failed, skipped] }
+        dataQualityScore: { type: number }
+        txnCount: { type: integer }
+        rulesFired: { type: integer }
+    SanctionsIndexStatus:
+      type: object
+      required: [state, error, lists]
+      properties:
+        state: { type: string, enum: [ready, loading, error] }
+        error: { type: ["string", "null"] }
+        lists:
+          type: array
+          items: { $ref: "#/components/schemas/SanctionsListMeta" }
+    SanctionsRescreenChange:
+      type: object
+      required: [caseId, runId, before, after]
+      properties:
+        caseId: { type: integer }
+        runId: { type: integer }
+        before:
+          oneOf:
+            - type: object
+              required: [exact, strong, possible]
+              properties:
+                exact: { type: integer }
+                strong: { type: integer }
+                possible: { type: integer }
+            - type: "null"
+        after:
+          type: object
+          required: [exact, strong, possible]
+          properties:
+            exact: { type: integer }
+            strong: { type: integer }
+            possible: { type: integer }
+    SanctionsSchedulerStatus:
+      type: object
+      required: [running, sweeping, intervalHours, lastCheckAt, nextCheckAt, lastResult, lastError, lastRescreenAt, casesRescreened, lastChanges]
+      properties:
+        running: { type: boolean }
+        sweeping: { type: boolean }
+        intervalHours: { type: number }
+        lastCheckAt: { type: ["string", "null"] }
+        nextCheckAt: { type: ["string", "null"] }
+        lastResult: { type: string, enum: [idle, up_to_date, rescreened, lists_unavailable, error] }
+        lastError: { type: ["string", "null"] }
+        lastRescreenAt: { type: ["string", "null"] }
+        casesRescreened: { type: integer }
+        lastChanges:
+          type: array
+          items: { $ref: "#/components/schemas/SanctionsRescreenChange" }
+    SanctionsStatus:
+      type: object
+      required: [lists, scheduler]
+      properties:
+        lists: { $ref: "#/components/schemas/SanctionsIndexStatus" }
+        scheduler: { $ref: "#/components/schemas/SanctionsSchedulerStatus" }
+    SanctionsRescreenAck:
+      type: object
+      required: [started, alreadyRunning]
+      properties:
+        started: { type: boolean }
+        alreadyRunning: { type: boolean }
+    CounterpartyCaseBreakdown:
+      type: object
+      required: [caseId, subjectName, caseStatus, txnCount, totalKwd, inflowKwd, outflowKwd, flaggedCount]
+      properties:
+        caseId: { type: integer }
+        subjectName: { type: string }
+        caseStatus: { type: string }
+        txnCount: { type: integer }
+        totalKwd: { type: number }
+        inflowKwd: { type: number }
+        outflowKwd: { type: number }
+        flaggedCount: { type: integer }
+    SharedCounterparty:
+      type: object
+      required: [key, display, kind, caseCount, totalTxns, totalKwd, subjectOfCaseIds, cases]
+      properties:
+        key: { type: string }
+        display: { type: string }
+        kind: { type: string, enum: [name, account_ref, instapay_ref] }
+        caseCount: { type: integer }
+        totalTxns: { type: integer }
+        totalKwd: { type: number }
+        subjectOfCaseIds:
+          type: array
+          items: { type: integer }
+        cases:
+          type: array
+          items: { $ref: "#/components/schemas/CounterpartyCaseBreakdown" }
+    CounterpartyIntelReport:
+      type: object
+      required: [casesCovered, txnsScanned, sharedCount, clusters]
+      properties:
+        casesCovered: { type: integer }
+        txnsScanned: { type: integer }
+        sharedCount: { type: integer }
+        clusters:
+          type: array
+          items: { $ref: "#/components/schemas/SharedCounterparty" }
+    RulePerformanceRow:
+      type: object
+      required: [ruleId, title, severity, typologyName, weightLogLr, casesFired, escalate, watchlist, close, undecided]
+      properties:
+        ruleId: { type: string }
+        title: { type: string }
+        severity: { type: string }
+        typologyName: { type: string }
+        weightLogLr: { type: number }
+        casesFired: { type: integer }
+        escalate: { type: integer }
+        watchlist: { type: integer }
+        close: { type: integer }
+        undecided: { type: integer }
+    RulePerformanceReport:
+      type: object
+      required: [casesAssessed, casesDecided, rules]
+      properties:
+        casesAssessed: { type: integer }
+        casesDecided: { type: integer }
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RulePerformanceRow"
+    AiVerificationSection:
+      type: object
+      required: [section, label, citationsChecked, citationsValid, issues]
+      properties:
+        section: { type: string }
+        label: { type: string }
+        citationsChecked: { type: integer }
+        citationsValid: { type: integer }
+        issues:
+          type: array
+          items: { type: string }
+    AiVerification:
+      type: object
+      required: [verifiedAt, overall, totalChecked, totalValid, sections]
+      properties:
+        verifiedAt: { type: string }
+        overall: { type: string, enum: [verified, issues] }
+        totalChecked: { type: integer }
+        totalValid: { type: integer }
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiVerificationSection"
+    DataQualityCheck:
+      type: object
+      required: [id, label, status, summary, items, txnIds]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        status: { type: string, enum: [pass, warn, fail] }
+        summary: { type: string }
+        items:
+          type: array
+          items: { type: string }
+        txnIds:
+          type: array
+          items: { type: integer }
+    DataQualityFileSummary:
+      type: object
+      required: [bankLabel, filename, rowsParsed, rowsSkipped, dataQuality, periodStart, periodEnd]
+      properties:
+        bankLabel: { type: string }
+        filename: { type: string }
+        rowsParsed: { type: integer }
+        rowsSkipped: { type: integer }
+        dataQuality: { type: number }
+        periodStart: { type: ["string", "null"] }
+        periodEnd: { type: ["string", "null"] }
+    DataQualityReport:
+      type: object
+      required: [generatedAt, score, filesAssessed, txnsAssessed, checks, files]
+      properties:
+        generatedAt: { type: string }
+        score: { type: number }
+        filesAssessed: { type: integer }
+        txnsAssessed: { type: integer }
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataQualityCheck"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataQualityFileSummary"
     GatedTechnicalTest:
       type: object
       required: [testId, reason]
@@ -1082,6 +1348,14 @@ components:
         profilePrediction:
           oneOf:
             - $ref: "#/components/schemas/ProfilePrediction"
+            - type: "null"
+        dataQualityReport:
+          oneOf:
+            - $ref: "#/components/schemas/DataQualityReport"
+            - type: "null"
+        aiVerification:
+          oneOf:
+            - $ref: "#/components/schemas/AiVerification"
             - type: "null"
         disclosureReconciliation:
           oneOf:

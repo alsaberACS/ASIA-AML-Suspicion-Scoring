@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { reconcileInterruptedAiRuns } from "./aml/ai";
 import { reconcileInterruptedDisclosures } from "./aml/disclosure";
 import { warmSanctionsCache } from "./aml/sanctions";
+import { startSanctionsScheduler } from "./aml/sanctions-scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -32,4 +33,5 @@ app.listen(port, (err) => {
     logger.error({ err }, "disclosure extraction reconciliation failed"),
   );
   warmSanctionsCache();
+  startSanctionsScheduler();
 });

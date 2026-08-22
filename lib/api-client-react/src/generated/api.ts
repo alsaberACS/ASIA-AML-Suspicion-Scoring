@@ -21,12 +21,14 @@ import type {
 
 import type {
   AnalysisRun,
+  AnalysisRunSummary,
   ApiMessage,
   BankFile,
   BankFileUpload,
   Case,
   CaseInput,
   CaseUpdate,
+  CounterpartyIntelReport,
   DashboardSummary,
   Disclosure,
   DisclosureExtraction,
@@ -36,6 +38,9 @@ import type {
   HealthStatus,
   ListCaseTransactionsParams,
   NetworkGraph,
+  RulePerformanceReport,
+  SanctionsRescreenAck,
+  SanctionsStatus,
   TimelinePoint,
   TransactionPage
 } from './api.schemas';
@@ -1030,6 +1035,385 @@ export function useGetLatestAnalysis<TData = Awaited<ReturnType<typeof getLatest
 
 
 
+
+export const getListAnalysisRunsUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/analysis-runs`
+}
+
+/**
+ * @summary List all analysis runs for a case (lightweight, newest first)
+ */
+export const listAnalysisRuns = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<AnalysisRunSummary[]> => {
+
+  return customFetch<AnalysisRunSummary[]>(getListAnalysisRunsUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAnalysisRunsQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/analysis-runs`
+    ] as const;
+    }
+
+
+export const getListAnalysisRunsQueryOptions = <TData = Awaited<ReturnType<typeof listAnalysisRuns>>, TError = ErrorType<unknown>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAnalysisRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAnalysisRunsQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAnalysisRuns>>> = ({ signal }) => listAnalysisRuns(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAnalysisRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAnalysisRunsQueryResult = NonNullable<Awaited<ReturnType<typeof listAnalysisRuns>>>
+export type ListAnalysisRunsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all analysis runs for a case (lightweight, newest first)
+ */
+
+export function useListAnalysisRuns<TData = Awaited<ReturnType<typeof listAnalysisRuns>>, TError = ErrorType<unknown>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAnalysisRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAnalysisRunsQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRulePerformanceUrl = () => {
+
+
+
+
+  return `/api/analytics/rule-performance`
+}
+
+/**
+ * @summary Cross-case rule performance (fired counts vs analyst dispositions on latest runs)
+ */
+export const getRulePerformance = async ( options?: Parameters<typeof customFetch>[1]): Promise<RulePerformanceReport> => {
+
+  return customFetch<RulePerformanceReport>(getGetRulePerformanceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRulePerformanceQueryKey = () => {
+    return [
+    `/api/analytics/rule-performance`
+    ] as const;
+    }
+
+
+export const getGetRulePerformanceQueryOptions = <TData = Awaited<ReturnType<typeof getRulePerformance>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRulePerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRulePerformanceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRulePerformance>>> = ({ signal }) => getRulePerformance({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRulePerformance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRulePerformanceQueryResult = NonNullable<Awaited<ReturnType<typeof getRulePerformance>>>
+export type GetRulePerformanceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Cross-case rule performance (fired counts vs analyst dispositions on latest runs)
+ */
+
+export function useGetRulePerformance<TData = Awaited<ReturnType<typeof getRulePerformance>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRulePerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRulePerformanceQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCounterpartyIntelUrl = () => {
+
+
+
+
+  return `/api/analytics/counterparty-intel`
+}
+
+/**
+ * @summary Counterparties shared across cases (global identity clustering)
+ */
+export const getCounterpartyIntel = async ( options?: Parameters<typeof customFetch>[1]): Promise<CounterpartyIntelReport> => {
+
+  return customFetch<CounterpartyIntelReport>(getGetCounterpartyIntelUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCounterpartyIntelQueryKey = () => {
+    return [
+    `/api/analytics/counterparty-intel`
+    ] as const;
+    }
+
+
+export const getGetCounterpartyIntelQueryOptions = <TData = Awaited<ReturnType<typeof getCounterpartyIntel>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCounterpartyIntel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCounterpartyIntelQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCounterpartyIntel>>> = ({ signal }) => getCounterpartyIntel({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCounterpartyIntel>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCounterpartyIntelQueryResult = NonNullable<Awaited<ReturnType<typeof getCounterpartyIntel>>>
+export type GetCounterpartyIntelQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Counterparties shared across cases (global identity clustering)
+ */
+
+export function useGetCounterpartyIntel<TData = Awaited<ReturnType<typeof getCounterpartyIntel>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCounterpartyIntel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCounterpartyIntelQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSanctionsStatusUrl = () => {
+
+
+
+
+  return `/api/sanctions/status`
+}
+
+/**
+ * @summary Sanctions list freshness and auto re-screen scheduler status
+ */
+export const getSanctionsStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<SanctionsStatus> => {
+
+  return customFetch<SanctionsStatus>(getGetSanctionsStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSanctionsStatusQueryKey = () => {
+    return [
+    `/api/sanctions/status`
+    ] as const;
+    }
+
+
+export const getGetSanctionsStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSanctionsStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSanctionsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSanctionsStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSanctionsStatus>>> = ({ signal }) => getSanctionsStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSanctionsStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSanctionsStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSanctionsStatus>>>
+export type GetSanctionsStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Sanctions list freshness and auto re-screen scheduler status
+ */
+
+export function useGetSanctionsStatus<TData = Awaited<ReturnType<typeof getSanctionsStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSanctionsStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSanctionsStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTriggerSanctionsRescreenUrl = () => {
+
+
+
+
+  return `/api/sanctions/rescreen`
+}
+
+/**
+ * @summary Force an immediate freshness check and portfolio re-screen
+ */
+export const triggerSanctionsRescreen = async ( options?: Parameters<typeof customFetch>[1]): Promise<SanctionsRescreenAck> => {
+
+  return customFetch<SanctionsRescreenAck>(getTriggerSanctionsRescreenUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTriggerSanctionsRescreenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerSanctionsRescreen>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof triggerSanctionsRescreen>>, TError,void, TContext> => {
+
+const mutationKey = ['triggerSanctionsRescreen'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof triggerSanctionsRescreen>>, void> = () => {
+
+
+          return  triggerSanctionsRescreen(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TriggerSanctionsRescreenMutationResult = NonNullable<Awaited<ReturnType<typeof triggerSanctionsRescreen>>>
+
+    export type TriggerSanctionsRescreenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Force an immediate freshness check and portfolio re-screen
+ */
+export const useTriggerSanctionsRescreen = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerSanctionsRescreen>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof triggerSanctionsRescreen>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getTriggerSanctionsRescreenMutationOptions(options));
+    }
 
 export const getGetAnalysisRunUrl = (runId: number,) => {
 

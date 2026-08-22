@@ -9,6 +9,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { aiAvailable, runAiLayers } from "./ai";
+import { buildDataQualityReport } from "./data-quality";
 import { computeFeatures } from "./features";
 import { findInternalPairs } from "./netting";
 import { evaluateRules } from "./rules";
@@ -101,6 +102,10 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
       `Consolidated data quality ${dataQuality.toFixed(2)} is below the 0.70 gate - evidence contributions are shrunk toward the prior and any alert carries a reliability caveat.`,
     );
 
+  // 2b. Structured data quality report (cross-file checks, persisted for the
+  // evidence pack; never feeds the score - dataQuality above already does).
+  const dataQualityReport = buildDataQualityReport(txns, fileRows, r3(dataQuality));
+
   // 3-5. Features, rules, Bayesian aggregation.
   const bundle = computeFeatures(txns, pairs, profile);
   const hits = evaluateRules(bundle, txns, profile);
@@ -152,6 +157,7 @@ export async function runAnalysis(caseId: number): Promise<AnalysisRunRow> {
       band: score.band,
       dataQualityScore: r3(dataQuality),
       dataQualityIssues: dqIssues,
+      dataQualityReport: dataQualityReport as unknown,
       txnCount: txns.length,
       totalCreditsKwd: r2(totalCredits),
       totalDebitsKwd: r2(totalDebits),

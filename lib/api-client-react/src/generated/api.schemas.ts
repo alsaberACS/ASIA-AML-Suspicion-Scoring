@@ -401,6 +401,8 @@ export interface TypologyFinding {
   strength: TypologyFindingStrength;
   reasoning: string;
   supportingTxnIds: number[];
+  /** Transaction ids the AI cited that do not exist in the case; preserved for evidence verification (absent on runs analyzed before this check existed) */
+  rejectedTxnIds?: number[];
   supportingFeatures: SupportingFeature[];
   benignExplanationsPossible: string[];
 }
@@ -449,6 +451,238 @@ export interface MethodologicalObjection {
   targetFinding: string;
   objection: string;
   severity: MethodologicalObjectionSeverity;
+}
+
+export type AnalysisRunSummaryAiStatus = typeof AnalysisRunSummaryAiStatus[keyof typeof AnalysisRunSummaryAiStatus];
+
+
+export const AnalysisRunSummaryAiStatus = {
+  pending: 'pending',
+  running: 'running',
+  complete: 'complete',
+  failed: 'failed',
+  skipped: 'skipped',
+} as const;
+
+export interface AnalysisRunSummary {
+  id: number;
+  caseId: number;
+  createdAt: string;
+  probability: number;
+  band: string;
+  aiStatus: AnalysisRunSummaryAiStatus;
+  dataQualityScore: number;
+  txnCount: number;
+  rulesFired: number;
+}
+
+export type SanctionsIndexStatusState = typeof SanctionsIndexStatusState[keyof typeof SanctionsIndexStatusState];
+
+
+export const SanctionsIndexStatusState = {
+  ready: 'ready',
+  loading: 'loading',
+  error: 'error',
+} as const;
+
+export type SanctionsListMetaId = typeof SanctionsListMetaId[keyof typeof SanctionsListMetaId];
+
+
+export const SanctionsListMetaId = {
+  ofac_sdn: 'ofac_sdn',
+  un_consolidated: 'un_consolidated',
+} as const;
+
+export interface SanctionsListMeta {
+  id: SanctionsListMetaId;
+  label: string;
+  fetchedAt: string;
+  stale: boolean;
+  entryCount: number;
+}
+
+export interface SanctionsIndexStatus {
+  state: SanctionsIndexStatusState;
+  /** @nullable */
+  error: string | null;
+  lists: SanctionsListMeta[];
+}
+
+export type SanctionsRescreenChangeBefore = {
+  exact: number;
+  strong: number;
+  possible: number;
+} | null;
+
+export type SanctionsRescreenChangeAfter = {
+  exact: number;
+  strong: number;
+  possible: number;
+};
+
+export interface SanctionsRescreenChange {
+  caseId: number;
+  runId: number;
+  before: SanctionsRescreenChangeBefore;
+  after: SanctionsRescreenChangeAfter;
+}
+
+export type SanctionsSchedulerStatusLastResult = typeof SanctionsSchedulerStatusLastResult[keyof typeof SanctionsSchedulerStatusLastResult];
+
+
+export const SanctionsSchedulerStatusLastResult = {
+  idle: 'idle',
+  up_to_date: 'up_to_date',
+  rescreened: 'rescreened',
+  lists_unavailable: 'lists_unavailable',
+  error: 'error',
+} as const;
+
+export interface SanctionsSchedulerStatus {
+  running: boolean;
+  sweeping: boolean;
+  intervalHours: number;
+  /** @nullable */
+  lastCheckAt: string | null;
+  /** @nullable */
+  nextCheckAt: string | null;
+  lastResult: SanctionsSchedulerStatusLastResult;
+  /** @nullable */
+  lastError: string | null;
+  /** @nullable */
+  lastRescreenAt: string | null;
+  casesRescreened: number;
+  lastChanges: SanctionsRescreenChange[];
+}
+
+export interface SanctionsStatus {
+  lists: SanctionsIndexStatus;
+  scheduler: SanctionsSchedulerStatus;
+}
+
+export interface SanctionsRescreenAck {
+  started: boolean;
+  alreadyRunning: boolean;
+}
+
+export interface CounterpartyCaseBreakdown {
+  caseId: number;
+  subjectName: string;
+  caseStatus: string;
+  txnCount: number;
+  totalKwd: number;
+  inflowKwd: number;
+  outflowKwd: number;
+  flaggedCount: number;
+}
+
+export type SharedCounterpartyKind = typeof SharedCounterpartyKind[keyof typeof SharedCounterpartyKind];
+
+
+export const SharedCounterpartyKind = {
+  name: 'name',
+  account_ref: 'account_ref',
+  instapay_ref: 'instapay_ref',
+} as const;
+
+export interface SharedCounterparty {
+  key: string;
+  display: string;
+  kind: SharedCounterpartyKind;
+  caseCount: number;
+  totalTxns: number;
+  totalKwd: number;
+  subjectOfCaseIds: number[];
+  cases: CounterpartyCaseBreakdown[];
+}
+
+export interface CounterpartyIntelReport {
+  casesCovered: number;
+  txnsScanned: number;
+  sharedCount: number;
+  clusters: SharedCounterparty[];
+}
+
+export interface RulePerformanceRow {
+  ruleId: string;
+  title: string;
+  severity: string;
+  typologyName: string;
+  weightLogLr: number;
+  casesFired: number;
+  escalate: number;
+  watchlist: number;
+  close: number;
+  undecided: number;
+}
+
+export interface RulePerformanceReport {
+  casesAssessed: number;
+  casesDecided: number;
+  rules: RulePerformanceRow[];
+}
+
+export interface AiVerificationSection {
+  section: string;
+  label: string;
+  citationsChecked: number;
+  citationsValid: number;
+  issues: string[];
+}
+
+export type AiVerificationOverall = typeof AiVerificationOverall[keyof typeof AiVerificationOverall];
+
+
+export const AiVerificationOverall = {
+  verified: 'verified',
+  issues: 'issues',
+} as const;
+
+export interface AiVerification {
+  verifiedAt: string;
+  overall: AiVerificationOverall;
+  totalChecked: number;
+  totalValid: number;
+  sections: AiVerificationSection[];
+}
+
+export type DataQualityCheckStatus = typeof DataQualityCheckStatus[keyof typeof DataQualityCheckStatus];
+
+
+export const DataQualityCheckStatus = {
+  pass: 'pass',
+  warn: 'warn',
+  fail: 'fail',
+} as const;
+
+export interface DataQualityCheck {
+  id: string;
+  label: string;
+  status: DataQualityCheckStatus;
+  summary: string;
+  items: string[];
+  txnIds: number[];
+}
+
+export interface DataQualityFileSummary {
+  bankLabel: string;
+  filename: string;
+  rowsParsed: number;
+  rowsSkipped: number;
+  dataQuality: number;
+  /** @nullable */
+  periodStart: string | null;
+  /** @nullable */
+  periodEnd: string | null;
+}
+
+export interface DataQualityReport {
+  generatedAt: string;
+  score: number;
+  filesAssessed: number;
+  txnsAssessed: number;
+  checks: DataQualityCheck[];
+  files: DataQualityFileSummary[];
 }
 
 export interface GatedTechnicalTest {
@@ -636,22 +870,6 @@ export const SanctionsScreeningStatus = {
   complete: 'complete',
   unavailable: 'unavailable',
 } as const;
-
-export type SanctionsListMetaId = typeof SanctionsListMetaId[keyof typeof SanctionsListMetaId];
-
-
-export const SanctionsListMetaId = {
-  ofac_sdn: 'ofac_sdn',
-  un_consolidated: 'un_consolidated',
-} as const;
-
-export interface SanctionsListMeta {
-  id: SanctionsListMetaId;
-  label: string;
-  fetchedAt: string;
-  stale: boolean;
-  entryCount: number;
-}
 
 export type SanctionsMatchListId = typeof SanctionsMatchListId[keyof typeof SanctionsMatchListId];
 
@@ -889,6 +1107,8 @@ export interface AnalysisRun {
   aiProgress?: AiProgress | null;
   sanctionsScreening?: SanctionsScreening | null;
   profilePrediction?: ProfilePrediction | null;
+  dataQualityReport?: DataQualityReport | null;
+  aiVerification?: AiVerification | null;
   disclosureReconciliation?: DisclosureReconciliation | null;
   disposition?: Disposition | null;
 }

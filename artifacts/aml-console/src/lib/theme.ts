@@ -1,4 +1,12 @@
-export type ThemeId = 'cyan' | 'emerald' | 'amber' | 'violet' | 'ice';
+export type ThemeId =
+  | 'cyan'
+  | 'emerald'
+  | 'amber'
+  | 'violet'
+  | 'ice'
+  | 'paper'
+  | 'light'
+  | 'mist';
 
 export interface ThemeOption {
   id: ThemeId;
@@ -39,7 +47,28 @@ export const THEMES: ThemeOption[] = [
     tagline: 'Glacier blue on cold steel',
     swatches: ['hsl(215 40% 10%)', 'hsl(205 90% 62%)', 'hsl(190 80% 55%)'],
   },
+  {
+    id: 'paper',
+    label: 'Paper White',
+    tagline: 'Brightest - dark ink on pure white',
+    swatches: ['hsl(0 0% 100%)', 'hsl(190 95% 29%)', 'hsl(215 75% 46%)'],
+  },
+  {
+    id: 'light',
+    label: 'Daylight',
+    tagline: 'Soft off-white with white panels',
+    swatches: ['hsl(210 30% 96%)', 'hsl(190 95% 29%)', 'hsl(215 75% 46%)'],
+  },
+  {
+    id: 'mist',
+    label: 'Slate Mist',
+    tagline: 'Muted light gray-blue - lowest glare',
+    swatches: ['hsl(215 22% 90%)', 'hsl(191 90% 28%)', 'hsl(170 75% 27%)'],
+  },
 ];
+
+/** Theme ids that render dark ink on light surfaces. */
+export const LIGHT_THEME_IDS: ReadonlySet<ThemeId> = new Set(['paper', 'light', 'mist']);
 
 const STORAGE_KEY = 'aml-console-theme';
 
@@ -70,5 +99,13 @@ export function applyTheme(id: ThemeId) {
 
 /** Apply the saved theme before first render to avoid a color flash. */
 export function initTheme() {
-  setRootTheme(getSavedTheme());
+  let id = getSavedTheme();
+  try {
+    // ?theme=... previews a theme via URL without persisting it.
+    const q = new URLSearchParams(window.location.search).get('theme');
+    if (q && THEMES.some((t) => t.id === q)) id = q as ThemeId;
+  } catch {
+    /* URL unavailable - keep saved theme */
+  }
+  setRootTheme(id);
 }

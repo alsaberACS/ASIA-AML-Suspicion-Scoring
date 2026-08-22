@@ -15,6 +15,7 @@ import {
   InternalTransferPair
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { RunHistoryView } from './RunHistory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -141,11 +142,15 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
             </TabsTrigger>
             <TabsTrigger value="transactions" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Transactions</TabsTrigger>
             <TabsTrigger value="disposition" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Disposition</TabsTrigger>
+            <TabsTrigger value="history" data-testid="tab-history" className="font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary">History</TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="summary" className="m-0 focus-visible:outline-none">
           <DriverWaterfall run={run} onNavigateTxns={navigateToTransactions} />
+          <div className="mt-6">
+            <DataQualityCard run={run} onNavigateTxns={navigateToTransactions} />
+          </div>
         </TabsContent>
 
         <TabsContent value="rules" className="m-0 focus-visible:outline-none">
@@ -153,7 +158,7 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
         </TabsContent>
 
         <TabsContent value="sanctions" className="m-0 focus-visible:outline-none">
-          <SanctionsView run={run} />
+          <SanctionsView run={run} onRescreened={() => void refetchLatest()} />
         </TabsContent>
 
         <TabsContent value="network" className="m-0 focus-visible:outline-none">
@@ -210,6 +215,10 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
         
         <TabsContent value="disposition" className="m-0 focus-visible:outline-none">
           <DispositionView run={run} onUpdate={refetchLatest} />
+        </TabsContent>
+
+        <TabsContent value="history" className="m-0 focus-visible:outline-none">
+          <RunHistoryView caseId={caseId} currentRunId={run.id} />
         </TabsContent>
 
       </Tabs>
@@ -834,6 +843,139 @@ function TemporalChart({ data, large }: { data: any[]; large?: boolean }) {
   );
 }
 
+function DataQualityCard({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTxns: (ids: number[]) => void }) {
+  const report = run.dataQualityReport;
+  const scorePct = (run.dataQualityScore * 100).toFixed(0);
+  const scoreTone =
+    run.dataQualityScore >= 0.9 ? 'text-emerald-500 border-emerald-500/30'
+    : run.dataQualityScore >= 0.7 ? 'text-amber-500 border-amber-500/30'
+    : 'text-destructive border-destructive/30';
+
+  if (!report) {
+    return (
+      <Card className="bg-card border-border rounded-sm" data-testid="panel-data-quality">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base font-mono uppercase tracking-wider flex items-center gap-2">
+            <FileSearch className="h-4 w-4 text-primary" /> Data Quality
+          </CardTitle>
+          <Badge variant="outline" className={`font-mono ${scoreTone}`}>{scorePct}%</Badge>
+        </CardHeader>
+        <CardContent>
+          {run.dataQualityIssues.length > 0 ? (
+            <ul className="space-y-1.5">
+              {run.dataQualityIssues.map((s, i) => (
+                <li key={i} className="text-xs text-muted-foreground font-mono flex gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground font-mono">No quality issues recorded for this run.</p>
+          )}
+          <p className="text-[10px] font-mono text-muted-foreground/70 mt-3 uppercase tracking-wider">
+            Re-run the analysis to generate the full data quality breakdown.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const statusIcon = (s: string) =>
+    s === 'pass' ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+    : s === 'warn' ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+    : <AlertCircle className="h-4 w-4 text-destructive shrink-0" />;
+
+  return (
+    <Card className="bg-card border-border rounded-sm" data-testid="panel-data-quality">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base font-mono uppercase tracking-wider flex items-center gap-2">
+            <FileSearch className="h-4 w-4 text-primary" /> Data Quality
+          </CardTitle>
+          <CardDescription className="text-xs font-mono mt-1">
+            {report.filesAssessed} files, {report.txnsAssessed} transactions assessed. Quality below 0.70 shrinks
+            evidence toward the prior.
+          </CardDescription>
+        </div>
+        <Badge variant="outline" className={`font-mono text-sm px-3 py-1 ${scoreTone}`} data-testid="badge-dq-score">
+          {scorePct}%
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="border border-border/60 rounded-sm divide-y divide-border/40">
+          {report.checks.map((check) => (
+            <div key={check.id} className="px-4 py-3" data-testid={`dq-check-${check.id}`}>
+              <div className="flex items-center gap-3">
+                {statusIcon(check.status)}
+                <span className="text-xs font-mono uppercase tracking-wider flex-1 text-foreground/90">{check.label}</span>
+                {check.txnIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTxns(check.txnIds)}
+                    className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    data-testid={`button-dq-txns-${check.id}`}
+                  >
+                    <Search className="h-3 w-3" /> Examples
+                  </button>
+                )}
+                <span className={`text-[9px] font-mono uppercase tracking-widest ${
+                  check.status === 'pass' ? 'text-emerald-500' : check.status === 'warn' ? 'text-amber-500' : 'text-destructive'
+                }`}>
+                  {check.status}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5 ml-7">{check.summary}</p>
+              {check.status !== 'pass' && check.items.length > 0 && (
+                <ul className="mt-2 ml-7 space-y-1">
+                  {check.items.map((item, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground/80 font-mono border-l-2 border-border/60 pl-2">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="font-mono text-[10px] uppercase">Bank</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase">File</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase text-right">Parsed</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase text-right">Skipped</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase text-right">Quality</TableHead>
+                <TableHead className="font-mono text-[10px] uppercase">Period</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.files.map((f, i) => (
+                <TableRow key={i} className="hover:bg-muted/30">
+                  <TableCell className="font-mono text-xs">{f.bankLabel}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground max-w-[220px] truncate" title={f.filename}>{f.filename}</TableCell>
+                  <TableCell className="font-mono text-xs text-right">{f.rowsParsed}</TableCell>
+                  <TableCell className={`font-mono text-xs text-right ${f.rowsSkipped > 0 ? 'text-amber-500' : 'text-muted-foreground'}`}>{f.rowsSkipped}</TableCell>
+                  <TableCell className={`font-mono text-xs text-right ${
+                    f.dataQuality >= 0.9 ? 'text-emerald-500' : f.dataQuality >= 0.7 ? 'text-amber-500' : 'text-destructive'
+                  }`}>
+                    {(f.dataQuality * 100).toFixed(0)}%
+                  </TableCell>
+                  <TableCell className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                    {f.periodStart ?? '?'} {'\u2192'} {f.periodEnd ?? '?'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AiStageTracker({ run }: { run: AnalysisRun }) {
   const stages = run.aiProgress?.stages ?? [];
   const attempts = run.aiProgress?.attempts ?? 1;
@@ -987,9 +1129,61 @@ function AiAnalystView({ run, onNavigateTxns, onRerun, rerunPending }: {
   return <AiSections run={run} onNavigateTxns={onNavigateTxns} />;
 }
 
+function AiVerificationStrip({ verification }: { verification: NonNullable<AnalysisRun['aiVerification']> }) {
+  const [expanded, setExpanded] = useState(false);
+  const allIssues = verification.sections.flatMap((s) => s.issues.map((text) => ({ label: s.label, text })));
+  const clean = verification.overall === 'verified';
+  const flagged = verification.totalChecked - verification.totalValid;
+  return (
+    <Card
+      className={`border rounded-sm ${clean ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-amber-500/5 border-amber-500/30'}`}
+      data-testid="panel-ai-verification"
+    >
+      <CardContent className="py-3 px-4">
+        <div className="flex items-center gap-3">
+          {clean
+            ? <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
+            : <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-mono uppercase tracking-wider text-foreground/90">Evidence verification</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {verification.totalValid} of {verification.totalChecked} AI citations verified against case records
+              {!clean && ` - ${flagged} flagged`}
+            </p>
+          </div>
+          {!clean && allIssues.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              data-testid="button-ai-verification-details"
+            >
+              {expanded ? 'Hide' : 'Details'}
+            </button>
+          )}
+        </div>
+        {expanded && (
+          <ul className="mt-3 space-y-1.5 border-t border-border/40 pt-3">
+            {allIssues.map((it, i) => (
+              <li key={i} className="text-[11px] font-mono text-muted-foreground flex gap-2">
+                <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
+                <span>
+                  <span className="text-foreground/70 uppercase text-[9px] tracking-wider mr-2">{it.label}</span>
+                  {it.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AiSections({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTxns: (ids: number[]) => void }) {
   return (
     <div className="space-y-6">
+      {run.aiVerification && <AiVerificationStrip verification={run.aiVerification} />}
       {/* Profile Consistency */}
       {run.profileConsistency && (
         <Card className={`border rounded-sm shadow-sm ${
