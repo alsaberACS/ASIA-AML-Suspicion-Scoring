@@ -5,6 +5,7 @@ import {
   getGetAnalysisRunQueryKey,
   useGetCaseTimeline,
   useCreateDisposition,
+  useRetryAiAnalysis,
   useListCaseTransactions,
   AnalysisRun,
   RuleHit,
@@ -13,6 +14,7 @@ import {
   BankBreakdown,
   InternalTransferPair
 } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   AlertTriangle, CheckCircle2, AlertCircle, Info, ShieldAlert, Activity,
-  ArrowRightLeft, Layers, BrainCircuit, Shield, Network, Scale, FileText, FileSearch, ArrowRight, Search, ListFilter, Download, Maximize2
+  ArrowRightLeft, Layers, BrainCircuit, Shield, Network, Scale, FileText, FileSearch, ArrowRight, Search, ListFilter, Download, Maximize2, Loader2, RefreshCw
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import CaseNetworkGraph from './CaseNetworkGraph';
@@ -55,12 +57,33 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
       query: {
         queryKey: getGetAnalysisRunQueryKey(latestAnalysis?.id as number),
         enabled: shouldPoll,
-        refetchInterval: 2500,
+        // Stop polling once the AI layer settles instead of hammering the
+        // API forever with 304s.
+        refetchInterval: (query) => {
+          const s = query.state.data?.aiStatus;
+          return s === 'pending' || s === 'running' ? 2500 : false;
+        },
       },
     }
   );
 
   const run = polledAnalysis || latestAnalysis;
+
+  const queryClient = useQueryClient();
+  const retryAi = useRetryAiAnalysis({
+    mutation: {
+      onSuccess: (fresh) => {
+        // Seed the polling query cache with the fresh pending run. Without
+        // this, a run that failed while being polled leaves terminal data in
+        // that cache: its interval stays off, the stale failed state keeps
+        // rendering, and re-run appears to do nothing.
+        queryClient.setQueryData(getGetAnalysisRunQueryKey(fresh.id), fresh);
+        toast.success('AI analysis restarted');
+        void refetchLatest();
+      },
+      onError: () => toast.error('Could not restart the AI analysis. It may already be running.'),
+    },
+  });
 
   if (analysisLoading) {
     return <div className="p-12 text-center text-primary font-mono animate-pulse">Loading evidence pack...</div>;
@@ -168,7 +191,12 @@ export default function EvidencePack({ caseId }: { caseId: number }) {
         </TabsContent>
 
         <TabsContent value="ai" className="m-0 focus-visible:outline-none">
-          <AiAnalystView run={run} onNavigateTxns={navigateToTransactions} />
+          <AiAnalystView
+            run={run}
+            onNavigateTxns={navigateToTransactions}
+            onRerun={() => retryAi.mutate({ runId: run.id })}
+            rerunPending={retryAi.isPending}
+          />
         </TabsContent>
 
         <TabsContent value="transactions" className="m-0 focus-visible:outline-none">
@@ -806,22 +834,119 @@ function TemporalChart({ data, large }: { data: any[]; large?: boolean }) {
   );
 }
 
-function AiAnalystView({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTxns: (ids: number[]) => void }) {
-  if (run.aiStatus === 'pending' || run.aiStatus === 'running') {
-    return (
-      <div className="py-20 flex flex-col items-center justify-center text-center">
-        <div className="relative w-24 h-24 mb-8">
-          <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
-          <div className="absolute inset-2 border-2 border-primary/40 rounded-full animate-[spin_3s_linear_infinite]" />
-          <div className="absolute inset-4 border-2 border-primary/60 rounded-full animate-[spin_4s_linear_infinite_reverse]" />
-          <div className="absolute inset-0 flex items-center justify-center bg-background rounded-full z-10">
-            <BrainCircuit className="h-8 w-8 text-primary animate-pulse" />
+function AiStageTracker({ run }: { run: AnalysisRun }) {
+  const stages = run.aiProgress?.stages ?? [];
+  const attempts = run.aiProgress?.attempts ?? 1;
+  const anyRunning = stages.some((s) => s.status === 'running');
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!anyRunning) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [anyRunning]);
+  const fmtDur = (ms: number) => {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  return (
+    <Card className="bg-card border-border rounded-sm" data-testid="panel-ai-progress">
+      <CardContent className="p-6">
+        <div className="flex items-start gap-5">
+          <div className="relative w-14 h-14 shrink-0">
+            <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
+            <div className="absolute inset-1 border-2 border-primary/40 rounded-full animate-[spin_3s_linear_infinite]" />
+            <div className="absolute inset-2.5 border-2 border-primary/60 rounded-full animate-[spin_4s_linear_infinite_reverse]" />
+            <div className="absolute inset-0 flex items-center justify-center bg-background rounded-full z-10">
+              <BrainCircuit className="h-5 w-5 text-primary animate-pulse" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-base font-mono uppercase tracking-widest text-primary">Synthesizing Narrative</h3>
+              {attempts > 1 && (
+                <Badge variant="outline" className="font-mono text-[9px] uppercase border-amber-500/50 text-amber-500">
+                  Attempt {attempts}
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground text-xs font-mono mt-1">
+              Six reasoning layers run in sequence over the full evidence pack. This typically takes 5 to 8 minutes.
+              Completed layers appear below as they land.
+            </p>
           </div>
         </div>
-        <h3 className="text-xl font-mono uppercase tracking-widest text-primary mb-2">Synthesizing Narrative</h3>
-        <p className="text-muted-foreground text-sm font-mono max-w-md">
-          The LLM agent is reviewing rule hits, analyzing context, and generating adversarial benign explanations.
-        </p>
+        {stages.length > 0 && (
+          <div className="mt-5 border border-border/60 rounded-sm divide-y divide-border/40">
+            {stages.map((s) => {
+              const started = s.startedAt ? Date.parse(s.startedAt) : null;
+              const finished = s.finishedAt ? Date.parse(s.finishedAt) : null;
+              const dur =
+                s.status === 'complete' && started && finished ? fmtDur(finished - started)
+                : s.status === 'running' && started ? fmtDur(now - started)
+                : null;
+              return (
+                <div
+                  key={s.stageId}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${s.status === 'running' ? 'bg-primary/5' : ''}`}
+                >
+                  {s.status === 'complete' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  ) : s.status === 'running' ? (
+                    <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
+                  ) : s.status === 'failed' ? (
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                  ) : (
+                    <div className="h-4 w-4 flex items-center justify-center shrink-0">
+                      <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                    </div>
+                  )}
+                  <span
+                    className={`text-xs font-mono uppercase tracking-wider flex-1 ${
+                      s.status === 'running' ? 'text-primary' : s.status === 'complete' ? 'text-foreground/80' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                  {dur && <span className="text-[10px] font-mono text-muted-foreground tabular-nums">{dur}</span>}
+                  {s.status === 'running' && (
+                    <span className="text-[9px] font-mono uppercase text-primary/70 tracking-widest">Active</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AiAnalystView({ run, onNavigateTxns, onRerun, rerunPending }: {
+  run: AnalysisRun,
+  onNavigateTxns: (ids: number[]) => void,
+  onRerun?: () => void,
+  rerunPending?: boolean,
+}) {
+  if (run.aiStatus === 'pending' || run.aiStatus === 'running') {
+    const hasPartial =
+      (run.typologyFindings?.length ?? 0) > 0 ||
+      !!run.profileConsistency ||
+      (run.criticScenarios?.length ?? 0) > 0;
+    return (
+      <div className="space-y-6">
+        <AiStageTracker run={run} />
+        {hasPartial && (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                Completed layers {'\u00B7'} preliminary
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <AiSections run={run} onNavigateTxns={onNavigateTxns} />
+          </>
+        )}
       </div>
     );
   }
@@ -836,11 +961,33 @@ function AiAnalystView({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTx
           <p className="text-xs font-mono text-muted-foreground bg-background/50 inline-block px-3 py-1.5 rounded border border-border/50">
             Deterministic risk scores, drivers, and rules remain fully valid.
           </p>
+          {onRerun && (
+            <div className="mt-5">
+              <Button
+                variant="outline"
+                onClick={onRerun}
+                disabled={rerunPending}
+                className="font-mono text-xs uppercase tracking-wider rounded-sm border-primary/40 text-primary hover:bg-primary/10"
+                data-testid="button-rerun-ai"
+              >
+                {rerunPending ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                )}
+                Re-run AI Analysis
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
   }
 
+  return <AiSections run={run} onNavigateTxns={onNavigateTxns} />;
+}
+
+function AiSections({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTxns: (ids: number[]) => void }) {
   return (
     <div className="space-y-6">
       {/* Profile Consistency */}
@@ -869,6 +1016,7 @@ function AiAnalystView({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTx
       )}
 
       {/* Typology Narrative */}
+      {run.typologyFindings && run.typologyFindings.length > 0 && (
       <Card className="bg-card border-border rounded-sm">
         <CardHeader>
           <CardTitle className="text-base font-mono uppercase tracking-wider flex items-center gap-2">
@@ -925,6 +1073,7 @@ function AiAnalystView({ run, onNavigateTxns }: { run: AnalysisRun, onNavigateTx
           ))}
         </CardContent>
       </Card>
+      )}
 
       {/* Adversarial Critic */}
       {run.criticScenarios && run.criticScenarios.length > 0 && (
