@@ -17,3 +17,4 @@
 - [Late-mount measurement](late-mount-measurement.md) — ResizeObserver hooks need callback refs when the div mounts after loading gates; else silent 0x0 canvas. Screenshot results carry console.log output.
 - [Async job polling](async-job-polling.md) — poll-driven UIs must detect job completion via timestamp watermark, not transient busy-flag transitions; sub-poll-interval jobs never show busy.
 - [Methodology copy honesty](methodology-copy-honesty.md) — "how it works" copy gets fact-checked against engine source; red-flag words: calibrated, every, only; dark image sections need literal light colors.
+- [Annotated-doc tooling](annotated-doc-tooling.md) — TSX doc tools: src/tools + esbuild-bundle + node; figure boxes must size to note bottoms, not image height; magick text ops crash (append-only safe).

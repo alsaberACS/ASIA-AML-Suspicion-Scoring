@@ -46,7 +46,16 @@ import type { SanctionsScreening } from '@workspace/api-client-react';
 
 export default function EvidencePack({ caseId }: { caseId: number }) {
   const { data: latestAnalysis, isLoading: analysisLoading, error: analysisError, refetch: refetchLatest } = useGetLatestAnalysis(caseId);
-  const [activeTab, setActiveTab] = useState('summary');
+  // Deep-linkable evidence tab: /cases/:id?tab=rules|sanctions|ai|... opens
+  // that tab directly (falls back to summary for unknown values).
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    const valid = [
+      'summary', 'rules', 'sanctions', 'features', 'consolidation', 'timeline',
+      'network', 'intelligence', 'ai', 'transactions', 'disposition', 'history',
+    ];
+    return requested && valid.includes(requested) ? requested : 'summary';
+  });
   const [, setLocation] = useLocation();
   const [transactionIdsFilter, setTransactionIdsFilter] = useState<string | undefined>();
   

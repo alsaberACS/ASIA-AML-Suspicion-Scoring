@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xsC9A6Mv8hrYCOt7V6ygQ"
+uri = "file://documents/ASIA-AML-Console-User-Manual.pdf"
+type = "pdf"
+title = "ASIA AML Console — User Manual"
+description = "A 20-page illustrated manual in the WEF report style: cover with artwork and the ASIA logo, contents, 16 sections walking every screen with real annotated screenshots (handwritten notes and arrows), and a company page at the end."
+logical_id = "adc028f9-9a4b-4d7f-a7a7-ad8e84569ba0"
+content_hash = "sha256:29f155572a2d792ff002b2d3bb4d5bdef712b1b08ee92252a4ed2e260fc4ee06"
+size = 18504164
+mtime_ms = 1787474435102
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:737111de-cf3a-43e6-ae2f-f31872e692eb/adc028f9-9a4b-4d7f-a7a7-ad8e84569ba0/0bfcf282-fe53-4e35-8be2-356fe328c7f1"
+storage_version_token = "1787474522856583"
+content_type = "application/pdf"
