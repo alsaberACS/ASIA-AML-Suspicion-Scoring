@@ -41,6 +41,11 @@ var ACCENT = "#0F766E";
 var RED = "#B91C1C";
 var NOTE_BLUE = "#3D6B94";
 var NOTE_WARM = "#B45309";
+var DK_BG = "#0D1524";
+var DK_TEXT = "#F4F7FB";
+var DK_SLATE = "#9FB0C3";
+var DK_CYAN = "#4CC3F0";
+var DK_RULE = "#2A3A52";
 var MARGIN = 48;
 var CW = 595.28 - MARGIN * 2;
 var Footer = () => /* @__PURE__ */ jsxs(
@@ -174,6 +179,8 @@ var Body = ({ children }) => /* @__PURE__ */ jsxs(Page, { size: "A4", style: { p
 ] });
 var A = {
   logoNavy: must(path.join(BRAND, "asia-logo-navy.png")),
+  logoWhite: must(path.join(BRAND, "asia-logo-white.png")),
+  markCyan: must(path.join(BRAND, "asia-mark-cyan.png")),
   cover: must(path.join(ABOUT_IMG, "holo-dashboard.jpg")),
   landing: must(path.join(SHOTS, "01-landing.jpg")),
   dashboard: must(path.join(SHOTS, "02-dashboard.jpg")),
@@ -680,36 +687,65 @@ var Manual = () => /* @__PURE__ */ jsxs(
         ] }),
         /* @__PURE__ */ jsx(Box, { title: "A LAST WORD", color: STAND, children: /* @__PURE__ */ jsx(Text, { style: { fontSize: 8.6, lineHeight: 1.5, color: INK }, children: "The console is built on one promise: no black boxes. If you cannot see why a number is what it is, that is a defect - not a feature to work around. Every screen in this manual exists to keep that promise; use the receipts." }) })
       ] }),
-      /* @__PURE__ */ jsxs(Page, { size: "A4", style: { paddingTop: 42, paddingBottom: 44, paddingHorizontal: MARGIN, fontFamily: "Helvetica", color: INK }, children: [
-        /* @__PURE__ */ jsxs(View, { style: { alignItems: "flex-end" }, children: [
-          /* @__PURE__ */ jsx(Image, { src: A.logoNavy, style: { width: 120, height: 120 * 0.32, objectFit: "contain" } }),
-          /* @__PURE__ */ jsx(View, { style: { width: 168, borderTopWidth: 1, borderTopColor: INK, marginTop: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: INK, paddingBottom: 8 }, children: /* @__PURE__ */ jsxs(Text, { style: { fontSize: 9.2, letterSpacing: 0.8, color: "#1F3B63", textAlign: "center", lineHeight: 1.45, fontFamily: "Helvetica-Bold" }, children: [
-            "COMMITTED TO",
-            "\n",
-            "EVIDENCE-BASED",
-            "\n",
-            "FINANCIAL-CRIME ANALYTICS"
-          ] }) })
+      /* @__PURE__ */ jsxs(Page, { size: "A4", style: { backgroundColor: DK_BG, fontFamily: "Helvetica" }, children: [
+        /* @__PURE__ */ jsx(
+          Image,
+          {
+            src: A.markCyan,
+            style: { position: "absolute", right: -84, bottom: -96, width: 390, height: 390, objectFit: "contain", opacity: 0.05 }
+          }
+        ),
+        /* @__PURE__ */ jsxs(View, { style: { position: "absolute", left: MARGIN, right: MARGIN, top: 46, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, children: [
+          /* @__PURE__ */ jsxs(View, { children: [
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 8, letterSpacing: 1.6, color: DK_SLATE }, children: "ASIA CONSULTING AND PRIVATE TRAINING" }),
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 8, letterSpacing: 1.6, color: DK_CYAN, marginTop: 4 }, children: "ASIA DATA-SCIENCE" })
+          ] }),
+          /* @__PURE__ */ jsx(Image, { src: A.logoWhite, style: { width: 118, height: 118 * 0.32, objectFit: "contain" } })
         ] }),
-        /* @__PURE__ */ jsx(View, { style: { borderTopWidth: 0.75, borderTopColor: LINE, marginTop: 26, paddingTop: 14, alignItems: "flex-end" }, children: /* @__PURE__ */ jsxs(View, { style: { width: 200 }, children: [
-          /* @__PURE__ */ jsx(Text, { style: { fontSize: 8.4, lineHeight: 1.55, color: MUTED }, children: "ASIA Consulting and Private Training is a Kuwait-based consultancy. Its ASIA Data-Science division builds decision-support systems for financial-crime analysis, pairing deterministic forensic engines with carefully bounded AI assistance." }),
-          /* @__PURE__ */ jsx(Text, { style: { fontSize: 8.4, lineHeight: 1.55, color: MUTED, marginTop: 10 }, children: "The Suspicion Scoring Console documented here fuses cross-bank statement forensics, typology rules descended from FATF and Egmont guidance, sanctions screening and verified AI narration into one evidence pack that compliance teams can defend." })
+        /* @__PURE__ */ jsx(View, { style: { position: "absolute", left: MARGIN, top: 112, width: 34, height: 2, backgroundColor: DK_CYAN } }),
+        /* @__PURE__ */ jsx(Text, { style: { position: "absolute", left: MARGIN, top: 150, fontSize: 8, letterSpacing: 2.2, color: DK_CYAN }, children: "THE COMPANY BEHIND THE CONSOLE" }),
+        /* @__PURE__ */ jsxs(Text, { style: { position: "absolute", left: MARGIN, top: 170, fontSize: 24, lineHeight: 1.18, color: DK_TEXT, fontFamily: "Helvetica-Bold" }, children: [
+          "Built so every number",
+          "\n",
+          "survives cross-examination."
+        ] }),
+        /* @__PURE__ */ jsx(Text, { style: { position: "absolute", left: MARGIN, top: 248, width: 330, fontSize: 9.2, lineHeight: 1.65, color: DK_SLATE }, children: "ASIA Consulting and Private Training is a Kuwait-based consultancy. Its ASIA Data-Science division builds decision-support systems for financial-crime analysis - pairing deterministic forensic engines with carefully bounded AI, so that every score, every flag and every narrative arrives with its evidence attached." }),
+        /* @__PURE__ */ jsx(View, { style: { position: "absolute", left: MARGIN, right: MARGIN, top: 360, flexDirection: "row" }, children: [
+          ["17", "TYPOLOGY RULES FROM FATF AND EGMONT GUIDANCE"],
+          ["5", "BANK STATEMENT DIALECTS, ARABIC INCLUDED"],
+          ["20K+", "SANCTIONS ENTRIES, REFRESHED EVERY SIX HOURS"],
+          ["100%", "AI CITATIONS CHECKED AGAINST THE LEDGER"]
+        ].map(([num, label], i) => /* @__PURE__ */ jsxs(View, { style: { flex: 1, borderTopWidth: 1.2, borderTopColor: DK_CYAN, paddingTop: 9, marginRight: i < 3 ? 16 : 0 }, children: [
+          /* @__PURE__ */ jsx(Text, { style: { fontSize: 17, fontFamily: "Helvetica-Bold", color: DK_CYAN }, children: num }),
+          /* @__PURE__ */ jsx(Text, { style: { fontSize: 6.9, letterSpacing: 0.7, lineHeight: 1.55, color: DK_SLATE, marginTop: 5 }, children: label })
+        ] }, i)) }),
+        /* @__PURE__ */ jsx(View, { style: { position: "absolute", left: MARGIN, top: 486, width: 238, borderTopWidth: 1, borderTopColor: DK_CYAN, borderBottomWidth: 1, borderBottomColor: DK_CYAN, paddingVertical: 9 }, children: /* @__PURE__ */ jsxs(Text, { style: { fontSize: 9.4, letterSpacing: 1.1, lineHeight: 1.5, color: DK_TEXT, fontFamily: "Helvetica-Bold" }, children: [
+          "COMMITTED TO EVIDENCE-BASED",
+          "\n",
+          "FINANCIAL-CRIME ANALYTICS"
         ] }) }),
-        /* @__PURE__ */ jsxs(View, { style: { position: "absolute", right: MARGIN, bottom: 96, width: 200 }, children: [
-          /* @__PURE__ */ jsx(Text, { style: { fontSize: 8.6, fontFamily: "Helvetica-Bold", color: INK, marginBottom: 3 }, children: "ASIA Consulting and Private Training" }),
-          /* @__PURE__ */ jsxs(Text, { style: { fontSize: 8.4, lineHeight: 1.5, color: MUTED }, children: [
-            "ASIA Data-Science",
-            "\n",
+        /* @__PURE__ */ jsx(Text, { style: { position: "absolute", left: 352, top: 612, width: 200, fontFamily: "Hand", fontSize: 13.5, lineHeight: 1.15, color: DK_CYAN, transform: "rotate(-2deg)" }, children: "questions? we answer the phone." }),
+        /* @__PURE__ */ jsxs(Svg, { style: { position: "absolute", left: 352, top: 652 }, width: 200, height: 72, children: [
+          /* @__PURE__ */ jsx(Path, { d: "M 150 6 Q 185 40 152 66", stroke: DK_CYAN, strokeWidth: 1.4, fill: "none", strokeLinecap: "round" }),
+          /* @__PURE__ */ jsx(Path, { d: "M 152 66 L 154.6 59.5", stroke: DK_CYAN, strokeWidth: 1.4, strokeLinecap: "round" }),
+          /* @__PURE__ */ jsx(Path, { d: "M 152 66 L 158.9 65", stroke: DK_CYAN, strokeWidth: 1.4, strokeLinecap: "round" })
+        ] }),
+        /* @__PURE__ */ jsxs(View, { style: { position: "absolute", left: MARGIN, right: MARGIN, bottom: 64, borderTopWidth: 0.75, borderTopColor: DK_RULE, paddingTop: 15, flexDirection: "row" }, children: [
+          /* @__PURE__ */ jsxs(View, { style: { flex: 1.4 }, children: [
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 9, fontFamily: "Helvetica-Bold", color: DK_TEXT }, children: "ASIA Consulting and Private Training" }),
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 8.4, lineHeight: 1.5, color: DK_SLATE, marginTop: 3 }, children: "ASIA Data-Science" })
+          ] }),
+          /* @__PURE__ */ jsx(View, { style: { flex: 1 }, children: /* @__PURE__ */ jsxs(Text, { style: { fontSize: 8.4, lineHeight: 1.5, color: DK_SLATE }, children: [
             "Shayma Tower, Floor 10",
             "\n",
             "Kuwait City, Kuwait"
-          ] }),
-          /* @__PURE__ */ jsxs(Text, { style: { fontSize: 8.4, lineHeight: 1.5, color: MUTED, marginTop: 8 }, children: [
-            "Tel.: +965 2227 1724",
-            "\n",
-            "INFO@ACS-KW.COM"
+          ] }) }),
+          /* @__PURE__ */ jsxs(View, { style: { width: 150, alignItems: "flex-end" }, children: [
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 9, fontFamily: "Helvetica-Bold", color: DK_TEXT }, children: "Tel. +965 2227 1724" }),
+            /* @__PURE__ */ jsx(Text, { style: { fontSize: 9, color: DK_CYAN, marginTop: 3 }, children: "INFO@ACS-KW.COM" })
           ] })
-        ] })
+        ] }),
+        /* @__PURE__ */ jsx(Text, { style: { position: "absolute", left: MARGIN, bottom: 36, fontSize: 6.9, color: "#5E7189" }, children: "(c) 2026 ASIA Consulting and Private Training. All rights reserved." })
       ] })
     ]
   }
