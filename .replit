@@ -22,3 +22,15 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["poppler-utils", "imagemagick"]
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 21664
+externalPort = 80
