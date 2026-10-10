@@ -54,7 +54,7 @@ export const SeedDemoCaseResponse = zod.object({
   "declaredBusinessActivity": zod.string().nullish(),
   "expectedCountries": zod.array(zod.string()).optional(),
   "notes": zod.string().nullish(),
-  "status": zod.enum(['draft', 'ready', 'analyzing', 'scored']),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "fileCount": zod.int(),
@@ -84,7 +84,7 @@ export const ListCasesResponseItem = zod.object({
   "declaredBusinessActivity": zod.string().nullish(),
   "expectedCountries": zod.array(zod.string()).optional(),
   "notes": zod.string().nullish(),
-  "status": zod.enum(['draft', 'ready', 'analyzing', 'scored']),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "fileCount": zod.int(),
@@ -128,7 +128,7 @@ export const CreateCaseResponse = zod.object({
   "declaredBusinessActivity": zod.string().nullish(),
   "expectedCountries": zod.array(zod.string()).optional(),
   "notes": zod.string().nullish(),
-  "status": zod.enum(['draft', 'ready', 'analyzing', 'scored']),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "fileCount": zod.int(),
@@ -162,7 +162,7 @@ export const GetCaseResponse = zod.object({
   "declaredBusinessActivity": zod.string().nullish(),
   "expectedCountries": zod.array(zod.string()).optional(),
   "notes": zod.string().nullish(),
-  "status": zod.enum(['draft', 'ready', 'analyzing', 'scored']),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "fileCount": zod.int(),
@@ -209,7 +209,7 @@ export const UpdateCaseResponse = zod.object({
   "declaredBusinessActivity": zod.string().nullish(),
   "expectedCountries": zod.array(zod.string()).optional(),
   "notes": zod.string().nullish(),
-  "status": zod.enum(['draft', 'ready', 'analyzing', 'scored']),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "fileCount": zod.int(),
@@ -1987,7 +1987,8 @@ export const GetCaseDisclosureResponse = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
   "extractedAt": zod.string().nullish(),
@@ -2147,7 +2148,8 @@ export const UploadCaseDisclosureResponse = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
   "extractedAt": zod.string().nullish(),
@@ -2312,7 +2314,8 @@ export const LocateCaseDisclosureSourcesResponse = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
   "extractedAt": zod.string().nullish(),
@@ -2470,7 +2473,8 @@ export const UpdateCaseDisclosureExtractionBody = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 })
 
 export const UpdateCaseDisclosureExtractionResponse = zod.object({
@@ -2612,7 +2616,8 @@ export const UpdateCaseDisclosureExtractionResponse = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
   "extractedAt": zod.string().nullish(),
@@ -2767,12 +2772,329 @@ export const ReprocessCaseDisclosureResponse = zod.object({
   "y0": zod.number(),
   "x1": zod.number(),
   "y1": zod.number()
-})).optional()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
 }),zod.null()]).optional(),
   "uploadedAt": zod.string(),
   "extractedAt": zod.string().nullish(),
   "phase": zod.string().nullish(),
   "correctedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Structured database records projected from the case's financial disclosure (declarant + declared items, Arabic as written)
+ */
+export const GetCaseDeclarationParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const GetCaseDeclarationResponse = zod.object({
+  "caseId": zod.int(),
+  "declarant": zod.union([zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "disclosureId": zod.int(),
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "fullName": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "uncertainFields": zod.array(zod.string()),
+  "source": zod.enum(['ai', 'investigator']),
+  "verifiedAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+}).describe('Database record of the declarant (بيانات عن المقر), Arabic as written on the form.'),zod.null()]),
+  "items": zod.array(zod.object({
+  "id": zod.int(),
+  "caseId": zod.int(),
+  "section": zod.enum(['minorChildren', 'realEstate', 'usufructRights', 'securities', 'bankAccountsAndDeposits', 'debtsOwed', 'valuableMovables']),
+  "rowIndex": zod.int(),
+  "ownerName": zod.string().nullish(),
+  "label": zod.string(),
+  "kind": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "itemCount": zod.number().nullish(),
+  "listed": zod.boolean().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "dateText": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean(),
+  "corrected": zod.boolean(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string())
+}).describe('One declared item (child, property, usufruct, security, account, debt or movable) as a database row.'))
+})
+
+
+/**
+ * @summary Pending case registrations started from a handwritten declaration PDF
+ */
+export const ListDeclarationIntakesResponseItem = zod.object({
+  "caseId": zod.int(),
+  "caseStatus": zod.string(),
+  "disclosureId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "phase": zod.string().nullish(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish(),
+  "declarationType": zod.string().nullish(),
+  "declarantName": zod.string().nullish(),
+  "civilId": zod.string().nullish()
+}).describe('A case opened from a handwritten declaration PDF. caseStatus \"intake\" = pending review; anything else = already registered.')
+export const ListDeclarationIntakesResponse = zod.array(ListDeclarationIntakesResponseItem)
+
+
+/**
+ * @summary Upload a handwritten Nazaha declaration PDF; opens a pending case and starts the AI reading
+ */
+export const StartDeclarationIntakeBody = zod.object({
+  "filename": zod.string(),
+  "contentBase64": zod.string()
+})
+
+export const StartDeclarationIntakeResponse = zod.object({
+  "caseId": zod.int(),
+  "caseStatus": zod.string(),
+  "disclosureId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "phase": zod.string().nullish(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish(),
+  "declarationType": zod.string().nullish(),
+  "declarantName": zod.string().nullish(),
+  "civilId": zod.string().nullish()
+}).describe('A case opened from a handwritten declaration PDF. caseStatus \"intake\" = pending review; anything else = already registered.')
+
+
+/**
+ * @summary Status of one declaration intake
+ */
+export const GetDeclarationIntakeParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const GetDeclarationIntakeResponse = zod.object({
+  "caseId": zod.int(),
+  "caseStatus": zod.string(),
+  "disclosureId": zod.int(),
+  "filename": zod.string(),
+  "fileSizeBytes": zod.int(),
+  "status": zod.enum(['processing', 'ready', 'failed']),
+  "phase": zod.string().nullish(),
+  "error": zod.string().nullish(),
+  "uploadedAt": zod.string(),
+  "extractedAt": zod.string().nullish(),
+  "declarationType": zod.string().nullish(),
+  "declarantName": zod.string().nullish(),
+  "civilId": zod.string().nullish()
+}).describe('A case opened from a handwritten declaration PDF. caseStatus \"intake\" = pending review; anything else = already registered.')
+
+
+/**
+ * @summary Discard a pending intake (deletes the pending case and its PDF)
+ */
+export const DiscardDeclarationIntakeParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const DiscardDeclarationIntakeResponse = zod.void()
+
+
+/**
+ * @summary Register the case from the reviewed declaration - saves corrections, writes the structured records and fills the case profile
+ */
+export const ConfirmDeclarationIntakeParams = zod.object({
+  "caseId": zod.coerce.number().int()
+})
+
+export const ConfirmDeclarationIntakeBody = zod.object({
+  "declarationType": zod.enum(['first', 'update', 'final', 'unknown']),
+  "declarationDate": zod.string().nullish(),
+  "pageCount": zod.int().nullish(),
+  "summaryEn": zod.string().nullish(),
+  "generalNotes": zod.string().nullish(),
+  "declarant": zod.union([zod.object({
+  "name": zod.string().nullish(),
+  "nationality": zod.string().nullish(),
+  "residenceCountry": zod.string().nullish(),
+  "gender": zod.string().nullish(),
+  "civilId": zod.string().nullish(),
+  "passportNo": zod.string().nullish(),
+  "jobTitle": zod.string().nullish(),
+  "employer": zod.string().nullish(),
+  "jobStartDate": zod.string().nullish(),
+  "jobEndDate": zod.string().nullish(),
+  "workPhone": zod.string().nullish(),
+  "homeAddress": zod.string().nullish(),
+  "mobile": zod.string().nullish(),
+  "homePhone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "monthlySalaryKwd": zod.number().nullish(),
+  "page": zod.int().nullish(),
+  "uncertainFields": zod.array(zod.string()).optional(),
+  "correctedFields": zod.array(zod.string()).optional(),
+  "alternates": zod.array(zod.string()).optional()
+}),zod.null()]).optional(),
+  "minorChildren": zod.array(zod.object({
+  "name": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "relation": zod.string().nullish(),
+  "idType": zod.string().nullish(),
+  "idNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "realEstate": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "ownershipPct": zod.number().nullish(),
+  "propertyType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "usufructRights": zod.array(zod.object({
+  "beneficiaryName": zod.string().nullish(),
+  "location": zod.string(),
+  "areaSqm": zod.number().nullish(),
+  "usageType": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "securities": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "instrumentType": zod.string().nullish(),
+  "company": zod.string(),
+  "companyCountry": zod.string().nullish(),
+  "quantityOrPct": zod.string().nullish(),
+  "listed": zod.boolean().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "bankAccountsAndDeposits": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "institution": zod.string(),
+  "institutionCountry": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "valueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "debtsOwed": zod.array(zod.object({
+  "debtorName": zod.string().nullish(),
+  "creditor": zod.string(),
+  "creditorCountry": zod.string().nullish(),
+  "amountKwd": zod.number().nullish(),
+  "finalRepaymentDate": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "valuableMovables": zod.array(zod.object({
+  "ownerName": zod.string().nullish(),
+  "description": zod.string(),
+  "count": zod.number().nullish(),
+  "totalValueKwd": zod.number().nullish(),
+  "notes": zod.string().nullish(),
+  "uncertain": zod.boolean().optional(),
+  "page": zod.int().nullish(),
+  "asWritten": zod.string().nullish(),
+  "alternates": zod.array(zod.string()).optional(),
+  "corrected": zod.boolean().optional()
+})),
+  "sectionsMarkedNone": zod.array(zod.string()),
+  "extractionWarnings": zod.array(zod.string()),
+  "readers": zod.union([zod.object({
+  "primary": zod.string(),
+  "secondary": zod.string().nullish(),
+  "adjudicated": zod.boolean()
+}),zod.null()]).optional(),
+  "locations": zod.array(zod.object({
+  "key": zod.string(),
+  "page": zod.int(),
+  "x0": zod.number(),
+  "y0": zod.number(),
+  "x1": zod.number(),
+  "y1": zod.number()
+})).optional(),
+  "pageRotation": zod.union([zod.literal(0),zod.literal(90),zod.literal(180),zod.literal(270)]).optional().describe('Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.')
+})
+
+export const ConfirmDeclarationIntakeResponse = zod.object({
+  "id": zod.int(),
+  "subjectName": zod.string(),
+  "subjectReference": zod.string().nullish(),
+  "declaredOccupation": zod.string().nullish(),
+  "declaredMonthlyIncomeKwd": zod.number().nullish(),
+  "declaredBusinessActivity": zod.string().nullish(),
+  "expectedCountries": zod.array(zod.string()).optional(),
+  "notes": zod.string().nullish(),
+  "status": zod.enum(['intake', 'draft', 'ready', 'analyzing', 'scored']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "fileCount": zod.int(),
+  "txnCount": zod.int(),
+  "bankCount": zod.int(),
+  "latestRun": zod.union([zod.object({
+  "runId": zod.int(),
+  "caseId": zod.int(),
+  "subjectName": zod.string(),
+  "probability": zod.number(),
+  "band": zod.string(),
+  "createdAt": zod.string(),
+  "disposition": zod.string().nullish()
+}),zod.null()]).optional()
 })
 
 

@@ -12,7 +12,13 @@ description: How to reach the api-server from the shell in development - the sha
 - To reach the API directly: find the workflow process
   (`pgrep -f dist/index.mjs`), read PORT from `/proc/<pid>/environ`, then hit
   `http://127.0.0.1:<PORT>/api/...`. Express mounts the router at `/api`;
-  health is `/api/healthz` (not /api/health).
+  health is `/api/healthz` (not /api/health). Simpler, verified: the shared
+  proxy on `http://127.0.0.1/api/...` (port 80, no artifact prefix) also
+  routes to the api-server and returns JSON.
+- Bundling a one-off probe script that imports server modules: anything that
+  pulls in `db`/`logger` needs the createRequire banner AND breaks on pino's
+  `__dirname`; import only pure modules (type-only imports are erased) or
+  read stored JSON instead.
 - Latest-analysis endpoint is `GET /api/cases/:caseId/analysis` (no /latest
   suffix). Upload is `POST /api/cases/:caseId/files` with JSON
   `{filename, bankLabel, contentBase64}`; delete cascades transactions.

@@ -2,6 +2,8 @@ import type {
   AnalysisRunRow,
   BankFileRow,
   CaseRow,
+  DeclarantRow,
+  DeclarationItemRow,
   DispositionRow,
   DisclosureRow,
 } from "@workspace/db";
@@ -90,7 +92,7 @@ export function caseToApi(row: CaseRow, stats: CaseStats) {
     declaredBusinessActivity: row.declaredBusinessActivity,
     expectedCountries: row.expectedCountries ?? [],
     notes: row.notes,
-    status: row.status as "draft" | "ready" | "analyzing" | "scored",
+    status: row.status as "intake" | "draft" | "ready" | "analyzing" | "scored",
     createdAt: iso(row.createdAt)!,
     updatedAt: iso(row.updatedAt)!,
     fileCount: stats.fileCount,
@@ -226,5 +228,95 @@ export function disclosureToApi(row: DisclosureRow) {
     uploadedAt: iso(row.uploadedAt)!,
     extractedAt: iso(row.extractedAt),
     correctedAt: iso(row.correctedAt),
+  };
+}
+
+export function declarantToApi(row: DeclarantRow) {
+  return {
+    id: row.id,
+    caseId: row.caseId,
+    disclosureId: row.disclosureId,
+    declarationType: row.declarationType as "first" | "update" | "final" | "unknown",
+    declarationDate: row.declarationDate,
+    fullName: row.fullName,
+    gender: row.gender,
+    nationality: row.nationality,
+    residenceCountry: row.residenceCountry,
+    civilId: row.civilId,
+    passportNo: row.passportNo,
+    jobTitle: row.jobTitle,
+    employer: row.employer,
+    jobStartDate: row.jobStartDate,
+    jobEndDate: row.jobEndDate,
+    workPhone: row.workPhone,
+    mobile: row.mobile,
+    homePhone: row.homePhone,
+    email: row.email,
+    homeAddress: row.homeAddress,
+    monthlySalaryKwd: row.monthlySalaryKwd,
+    generalNotes: row.generalNotes,
+    sectionsMarkedNone: row.sectionsMarkedNone ?? [],
+    uncertainFields: row.uncertainFields ?? [],
+    source: row.source as "ai" | "investigator",
+    verifiedAt: iso(row.verifiedAt),
+    updatedAt: iso(row.updatedAt)!,
+  };
+}
+
+export function declarationItemToApi(row: DeclarationItemRow) {
+  return {
+    id: row.id,
+    caseId: row.caseId,
+    section: row.section as
+      | "minorChildren"
+      | "realEstate"
+      | "usufructRights"
+      | "securities"
+      | "bankAccountsAndDeposits"
+      | "debtsOwed"
+      | "valuableMovables",
+    rowIndex: row.rowIndex,
+    ownerName: row.ownerName,
+    label: row.label,
+    kind: row.kind,
+    country: row.country,
+    idType: row.idType,
+    idNumber: row.idNumber,
+    areaSqm: row.areaSqm,
+    ownershipPct: row.ownershipPct,
+    quantityOrPct: row.quantityOrPct,
+    itemCount: row.itemCount,
+    listed: row.listed,
+    valueKwd: row.valueKwd,
+    dateText: row.dateText,
+    notes: row.notes,
+    uncertain: row.uncertain,
+    corrected: row.corrected,
+    page: row.page,
+    asWritten: row.asWritten,
+    alternates: row.alternates ?? [],
+  };
+}
+
+/** Intake summary: case + disclosure state without the full extraction payload. */
+export function declarationIntakeToApi(
+  caseRow: Pick<CaseRow, "id" | "status">,
+  disclosure: DisclosureRow,
+  declarant: Pick<DeclarantRow, "fullName" | "civilId" | "declarationType"> | null,
+) {
+  return {
+    caseId: caseRow.id,
+    caseStatus: caseRow.status,
+    disclosureId: disclosure.id,
+    filename: disclosure.filename,
+    fileSizeBytes: disclosure.fileSizeBytes,
+    status: disclosure.status as "processing" | "ready" | "failed",
+    phase: disclosure.phase,
+    error: disclosure.error,
+    uploadedAt: iso(disclosure.uploadedAt)!,
+    extractedAt: iso(disclosure.extractedAt),
+    declarationType: declarant?.declarationType ?? null,
+    declarantName: declarant?.fullName ?? null,
+    civilId: declarant?.civilId ?? null,
   };
 }

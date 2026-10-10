@@ -4,3 +4,4 @@ export * from "./transactions";
 export * from "./analysisRuns";
 export * from "./dispositions";
 export * from "./disclosures";
+export * from "./declarations";

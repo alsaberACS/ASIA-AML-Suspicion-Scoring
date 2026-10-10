@@ -5,15 +5,21 @@
  *
  * Extraction is a dual-reader pipeline over the PDF itself (no server-side
  * rasterization):
+ *   0. orientation       - scanners often store the landscape form sideways;
+ *                          a 4-way probe finds the upright rotation and the
+ *                          readers get a copy with /Rotate set so the Arabic
+ *                          is read upright. The stored PDF is untouched.
  *   1. reading_primary   - Claude reads the whole PDF as a document block.
  *   2. reading_secondary - Gemini independently reads the same PDF.
  *   3. adjudicating      - Claude re-examines the PDF with both readings and
  *                          merges them: agreements settle, disagreements are
  *                          re-checked against the ink and the rejected
  *                          reading is preserved in `alternates`.
- * If the secondary reader or the adjudication fails, the pipeline degrades
- * to the primary reading and records a warning. Every row carries
- * provenance: the PDF page it came from and the verbatim handwriting
+ * Every reading passes through a deterministic sanitizer (printed example
+ * rows dropped, dates normalized, implausible identifiers flagged) before it
+ * is used or stored. If the secondary reader or the adjudication fails, the
+ * pipeline degrades to the primary reading and records a warning. Every row
+ * carries provenance: the PDF page it came from and the verbatim handwriting
  * (`asWritten`). All model output is untrusted and coerced before it is
  * persisted. Investigator corrections (via PUT) set `corrected` flags and
  * never touch this pipeline.
@@ -23,6 +29,17 @@ import { ai as gemini } from "@workspace/integrations-gemini-ai";
 import { db, disclosuresTable } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { projectDeclarationRecords } from "./declarationRecords";
+import { normalizeFormDate, sanitizeExtraction } from "./disclosure-sanitize";
+import {
+  buildOrientationProbe,
+  countPdfPages,
+  extractPage,
+  isPageRotation,
+  rotatePdfPages,
+  rotationFromProbeAnswer,
+  type PageRotation,
+} from "./pdf-orient";
 
 const PRIMARY_MODEL = "claude-sonnet-4-6";
 const PRIMARY_READER_LABEL = "Claude Sonnet 4.6";
@@ -187,6 +204,11 @@ export interface DisclosureExtraction {
   readers: DisclosureReaders | null;
   // undefined = locator pass never ran; [] = ran and mapped nothing.
   locations?: DisclosureSourceLocation[];
+  /**
+   * Clockwise degrees the stored pages must be turned to read upright, as
+   * detected before reading. Absent when detection never ran or failed.
+   */
+  pageRotation?: PageRotation;
 }
 
 export interface DisclosureReconciliationFinding {
@@ -521,6 +543,7 @@ export function coerceDisclosureExtraction(raw: unknown): DisclosureExtraction {
     extractionWarnings: strArr(o.extractionWarnings, 15, 300),
     readers: readersOf(o.readers),
     ...(locations ? { locations } : {}),
+    ...(isPageRotation(o.pageRotation) ? { pageRotation: o.pageRotation } : {}),
   };
 }
 
@@ -705,27 +728,47 @@ function extractJsonLoose(text: string): unknown {
   return JSON.parse(t);
 }
 
-const EXTRACT_SYSTEM = `You extract structured data from a scanned Kuwaiti financial disclosure form (iqrar al-dhimma al-maliyya) issued by the Kuwait Anti-Corruption Authority (Nazaha) under Law No. 2 of 2016 and its Executive Regulations. The genuine filled-in content is HANDWRITTEN (typically blue ink) on a printed Arabic form.
-Hard rules:
-1. The form contains pre-printed ILLUSTRATIVE EXAMPLE rows: typed text on gray-shaded rows, outlined with red dashed borders and small red arrows labeled "mithal tawdihi" in Arabic. These are part of the blank form. NEVER extract them as entries. Extract ONLY genuine handwritten entries.
-2. Keep Arabic text exactly as written - never translate or transliterate names of people, companies, banks, or places. Write numbers as plain digits.
-3. If handwriting is ambiguous, give your best reading, set "uncertain": true on that item, and add a short note to extractionWarnings describing the doubt.
-4. PROVENANCE: on every extracted row AND on the declarant object, set "page" to the 1-based page number of the PDF where that entry is handwritten. On every row also set "asWritten" to a short verbatim transcription (max ~25 words, original Arabic script, digits as inked) of the key handwritten cells you read for that row - the raw ink before any normalization.
-5. If any individual declarant field is an uncertain reading, list that field's JSON key in declarant.uncertainFields (for example ["civilId","mobile"]).
-6. A section whose "la yujad" (none) checkbox is ticked, or whose table has no handwritten rows at all, was declared as none: include that section's key in sectionsMarkedNone and return an empty array for it.
-7. Never invent entries or fill gaps by assumption. Reply with ONLY the JSON object - no prose, no code fences.`;
+/**
+ * What both readers and the adjudicator must know about the printed form.
+ * Written from the actual Nazaha form: every table opens with typed example
+ * rows, every section has a "none" tick box, continuation pages repeat the
+ * tables, and the handwriting conventions (ditto marks, scrawled owner
+ * names, day-first dates) are what trip a naive reading.
+ */
+const FORM_KNOWLEDGE = `HOW THIS FORM IS BUILT - read before transcribing anything:
+A. PRINTED EXAMPLE ROWS. Every table begins with one or two pre-printed example rows: TYPED (not handwritten) text on grey-shaded rows, outlined by a red dashed border, with a red arrow labelled "مثال توضيحي". They always use the fictitious family "أحمد محمد فهد" (also خالد أحمد محمد فهد and بدر أحمد محمد فهد), placeholders such as 20xx or xxxx, and these sample assets: حطين - الكويت 500 م 50%; لندن - بريطانيا 200 م 25%; الجليعة - الكويت 2000 م; الفحيحيل - الكويت 500 م; شركة زين 2000 أسهم; شركة أولاد محمد فهد 50%; البنك الوطني 10,000 and 15,000; بنك بوبيان 50,000; بنك الائتمان 60,000; سيارات 2 25,000; ساعات 5 12,000; and on the notes page a sample sentence about a توكيل from السيد عبدالعزيز أحمد عبدالله and an income from a property in لندن. These rows are part of the BLANK form and must NEVER be output. A genuine entry is handwriting (pen strokes, usually blue ink) in a white row. Before you output any row ask: is this typed or handwritten? If it is typed, or it matches an example above, it is not an entry.
+B. THE "لا يوجد" (NONE) BOX. Beside each table title is a small box labelled لا يوجد. A handwritten tick or cross in that box on the section's FIRST page means the section is declared empty - even though the typed example rows are still visible below it. Pages whose title ends with "(يتبع)" are CONTINUATION pages of the previous section; a tick in the box there only means "no further rows" and neither adds nor removes anything. A section is none when its first-page box is ticked or when none of its pages has a handwritten row.
+C. CHECKBOX COLUMNS (ولي / وصي / قيم; بطاقة مدنية / جواز سفر; سكني / استثماري / تجاري / أخرى; شاليه / صناعي / زراعي / حظائر ثروة حيوانية / أخرى; دين / وديعة / حساب بنكي; مدرجة / غير مدرجة). In a handwritten row exactly one option carries a tick or cross. Output only that option's printed label. Never output two options joined by "/"; if you genuinely cannot see which box is marked, output null and flag the row uncertain.
+D. DITTO MARKS. A short wavy stroke, "〃", "~", "=" or a dash written under a cell means "same as the cell above". Copy the value from the row above and note the mark in asWritten.
+E. NAME CELLS (المالك, المنتفع, المدين, الإسم). The declarant normally writes their OWN name in every owner cell, usually as a quick compressed scrawl of the full name written clearly on the declarant page. When the strokes are that same name, output the declarant's full name exactly as read on the declarant page. If a different person is named (for example a child from section 1), transcribe that name. Name cells never contain digits or Latin letters - if your reading has any, the reading is wrong: re-read it or flag it uncertain.
+F. DATES. Handwritten dates are DAY / MONTH / YEAR: "10|05|2018" is 10 May 2018, "1/1/2010" is 1 January 2010, "10/5/2012" is 10 May 2012. When a 4-digit year is written first the order is YEAR / MONTH / DAY: "2026/10/1" is 1 October 2026. Never read a date month-first. Output ISO YYYY-MM-DD when every part is legible, otherwise the digits exactly as written. The declarationDate is ONLY the date written beside "تحريراً في" on the final notes page - never substitute the job start date or any other date.
+G. NUMBERS. Transcribe digit by digit and convert Arabic-Indic digits (٠١٢٣٤٥٦٧٨٩) to Western digits. Commas, Arabic commas and dots inside amounts are thousands separators ("70,112" is 70112; "50,000" is 50000). A Kuwaiti civil ID is exactly 12 digits and phone numbers are 8 digits: if your reading has a different length, re-check the ink and flag the field uncertain rather than padding or guessing.
+H. FIDELITY. Keep Arabic exactly as written - never translate, transliterate, or "correct" a word into a more common one (if the ink says الوفرة do not write الروضة; if it says مدير ادارة do not write مدير إداري). Read every page in its upright orientation; if a page still appears rotated, turn it mentally so the Arabic reads right-to-left.
+I. PROPER NOUNS MUST BE REAL. Institutions, companies and places written on this form are real Kuwaiti names, so a reading that is not a real word or name (for example تلصورس) is always a misread - look at the strokes again. Banks written here are almost always one of: بنك بوبيان, بيت التمويل الكويتي (often written بيت التمويل or بيتك), بنك الكويت الوطني (البنك الوطني), بنك الخليج, البنك التجاري الكويتي, بنك برقان, البنك الأهلي الكويتي, البنك الأهلي المتحد, بنك الكويت الدولي, بنك وربة, بنك الائتمان الكويتي, البنك الصناعي. Places are Kuwaiti areas (الوفرة, الجابرية, حطين, الفحيحيل, الجليعة, كبد, العبدلي ...) or foreign cities. When the strokes fit one such real name, output that name and flag the cell uncertain if the fit is not certain; when they fit none, output null with the uncertain flag. Rule H still applies: choose among real names that match the ink, never the most common name.`;
 
-const EXTRACT_USER = `Read this declaration page by page. The form's layout:
-- An instructions page with a small table of declaration types (first declaration / update / final declaration) where one row is ticked by hand - that tick is the declarationType (iqrar awwal = first, tahdith = update, iqrar nihai = final).
-- A declarant-data page (bayanat 'an al-muqirr): name, gender, nationality, civil ID number, passport number, country of residence, job/capacity, employing entity, date started, date left, work phone, home address, mobile, home phone, email, and total fixed monthly salary in KWD (ijmali al-ratib al-thabit shahriyyan).
-- Section 1: minor children and persons under the declarant's guardianship/custody (name, date of birth, relation ticked as wali/wasi/qayyim, ID type civil card or passport, ID number, notes).
-- Section 2: owned real estate (owner name, property location, area in square meters, ownership percentage, property type ticked sakani/istithmari/tijari/other, notes).
-- Section 3: usufruct rights (beneficiary name, location, area, type such as agricultural land, chalet, industrial, livestock pens, production shares, notes).
-- Section 4: securities and interests in companies (owner name, type such as shares/bonds/sukuk/fund units/company interest, count or percentage, company or issuer name, company country, listed vs unlisted tick, notes).
-- Section 5: deposits, bank accounts, and debts in the declarant's FAVOR (owner name, bank or debtor name, country, type ticked dayn/wadi'a/hisab banki, value in KWD, notes).
+const EXTRACT_SYSTEM = `You extract structured data from a scanned Kuwaiti financial disclosure form (إقرار الذمة المالية) issued by the Kuwait Anti-Corruption Authority (Nazaha) under Law No. 2 of 2016 and its Executive Regulations. The genuine filled-in content is HANDWRITTEN (typically blue ink) on a printed Arabic form. Your output feeds an official case file: a faithful transcription of the ink matters far more than completeness.
+
+${FORM_KNOWLEDGE}
+
+HARD RULES:
+1. Extract ONLY genuine handwritten entries. Never invent entries or fill gaps by assumption; leave blank or unreadable cells null.
+2. If handwriting is ambiguous, give your best reading, set "uncertain": true on that item, and add a short note to extractionWarnings describing the doubt.
+3. PROVENANCE: on every extracted row AND on the declarant object, set "page" to the 1-based page number of the PDF where that entry is handwritten. On every row also set "asWritten" to a short verbatim transcription (max ~25 words, original Arabic script, digits as inked) of the key handwritten cells you read for that row - the raw ink before any normalization.
+4. If any individual declarant field is an uncertain reading, list that field's JSON key in declarant.uncertainFields (for example ["civilId","mobile"]).
+5. A section declared as none (rule B): include its key in sectionsMarkedNone and return an empty array for it.
+6. Write numbers as plain digits. Reply with ONLY the JSON object - no prose, no code fences.`;
+
+const EXTRACT_USER = `Read this declaration page by page. The form's layout (section pages may be followed by "(يتبع)" continuation pages that repeat the same table):
+- An instructions page with a small table of declaration types (الإقرار الأول / تحديث / الإقرار النهائي) where one row is ticked by hand - that tick is the declarationType (first / update / final).
+- A declarant-data page (بيانات عن المقر): name, gender, nationality, civil ID number, passport number, country of residence, job/capacity, employing entity, date started, date left, work phone, home address, mobile, home phone, email, and total fixed monthly salary in KWD (إجمالي الراتب الثابت شهرياً).
+- Section 1: minor children and persons under the declarant's guardianship/custody (name, date of birth, relation ticked ولي / وصي / قيم, ID type ticked بطاقة مدنية / جواز سفر, ID number, notes).
+- Section 2: owned real estate (owner name, property location, area in square meters, ownership percentage, property type ticked سكني / استثماري / تجاري / أخرى, notes).
+- Section 3: usufruct rights (beneficiary name, location, area, type ticked شاليه / صناعي / زراعي / حظائر ثروة حيوانية / أخرى, notes).
+- Section 4: securities and interests in companies (owner name, type such as أسهم / سندات / صكوك / وحدات صناديق / حصة في شركة, count or percentage, company or issuer name, company country, listed ticked مدرجة / غير مدرجة, notes).
+- Section 5: deposits, bank accounts, and debts in the declarant's FAVOR (owner name, bank or debtor name, country, type ticked دين / وديعة / حساب بنكي, value in KWD, notes).
 - Section 6: debts ON the declarant (debtor name, creditor bank or entity, creditor country, debt value in KWD, final repayment date, notes).
-- Section 7: high-value movables worth over 3,000 KWD (owner name, description such as vehicles/machinery/jewelry/watches, count, total value in KWD, notes).
-- A final notes page (al-mulahazat) with free-text remarks, the declarant's name, the date written (tahriran fi), and signature.
+- Section 7: high-value movables worth over 3,000 KWD (owner name, description such as سيارات / آلات / مجوهرات / ساعات, count, total value in KWD, notes).
+- A final notes page (الملاحظات) with free-text remarks, the declarant's name, the date written (تحريراً في), and signature.
 
 Return ONLY this JSON object:
 {
@@ -823,16 +866,20 @@ async function callSecondaryExtraction(contentBase64: string): Promise<string> {
   return resp.text ?? "";
 }
 
-const ADJUDICATE_SYSTEM = `You are the senior reviewer reconciling two INDEPENDENT AI readings of the same scanned handwritten Kuwaiti financial disclosure form (iqrar al-dhimma al-maliyya). You have the original PDF plus Reader A's JSON and Reader B's JSON. Re-examine the actual handwriting yourself wherever they differ - the PDF is the only ground truth.
-Rules:
+const ADJUDICATE_SYSTEM = `You are the senior reviewer reconciling two INDEPENDENT AI readings of the same scanned handwritten Kuwaiti financial disclosure form (إقرار الذمة المالية). You have the original PDF plus Reader A's JSON and Reader B's JSON. The PDF is the only ground truth: re-examine the actual handwriting yourself wherever the readers differ, and spot-check what they agree on - two readers can share the same mistake.
+
+${FORM_KNOWLEDGE}
+
+RULES:
 1. Agreement: when both readers give the same value, keep it and clear "uncertain" unless the reading is still genuinely doubtful in the ink.
-2. Disagreement: look at that spot in the PDF yourself, choose the more plausible reading, set "uncertain": true, and record each rejected plausible reading in that item's "alternates" array as a short note like "second reader saw: 70,100".
+2. Disagreement: look at that spot in the PDF yourself and output the reading that matches the strokes. You are the final reader: if neither reader's value matches the ink, output your own reading rather than the "more plausible" of two wrong ones. Set "uncertain": true when doubt remains and record each rejected reading in that item's "alternates" array as a short note like "second reader saw: 70,100".
 3. Declarant fields: same logic. List still-doubtful field keys in declarant.uncertainFields and put rejected readings in declarant.alternates prefixed by the field key, e.g. "mobile - second reader saw: 99887766".
-4. Rows found by only one reader: include them ONLY if you can see a genuine handwritten row in the PDF at that spot. NEVER include the form's pre-printed example rows (typed text, gray shading, red dashed border, "mithal tawdihi").
-5. Keep "page" and "asWritten" (verbatim Arabic, max ~25 words) accurate on every row - fix them if a reader got them wrong.
-6. Keep Arabic text exactly as written - never translate or transliterate names. Numbers as plain digits.
-7. Rebuild extractionWarnings: keep only doubts that remain after cross-checking; mention materially resolved conflicts in one short note each; no duplicates.
-8. Output the SAME JSON schema as the readings (do not add new keys). Reply with ONLY the JSON object - no prose, no code fences.`;
+4. Rows found by only one reader: include them ONLY if you can see a genuine handwritten row in the PDF at that spot. Drop any row that is a printed example row (rule A) and honour the لا يوجد boxes (rule B): a section whose first-page box is ticked goes in sectionsMarkedNone with an empty array, whatever either reader returned.
+5. Checkbox values must be a single printed option (rule C); if a reader joined two options with "/", resolve it from the ink.
+6. Keep "page" and "asWritten" (verbatim Arabic, max ~25 words) accurate on every row - fix them if a reader got them wrong.
+7. Keep Arabic text exactly as written - never translate, transliterate or normalize names. Numbers as plain digits; dates per rule F.
+8. Rebuild extractionWarnings: keep only doubts that remain after cross-checking; mention materially resolved conflicts in one short note each; no duplicates.
+9. Output the SAME JSON schema as the readings (do not add new keys). Reply with ONLY the JSON object - no prose, no code fences.`;
 
 async function callAdjudication(
   contentBase64: string,
@@ -1112,9 +1159,171 @@ export async function locateDisclosureSources(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Page orientation. Scanners store the landscape form as portrait pages with
+// the content on its side, and sideways Arabic handwriting reads badly.
+// Asking a model for the angle of a single page is unreliable (it mentally
+// normalizes the page and answers "0"); asking it to pick the upright one of
+// four rotated copies is consistent, so that is the probe.
+
+const ORIENTATION_QUESTION = `The attached PDF has 4 pages: the same scanned page of an Arabic government form shown in four different orientations (each page is turned a further 90 degrees). Exactly one page is upright: its printed Arabic text lines run horizontally and read right-to-left, the letters are not upside down or sideways, and the header with the logo is at the top of the page. Which page is upright? Answer with only the page number: 1, 2, 3 or 4.`;
+
+async function detectUprightRotation(
+  contentBase64: string,
+  log: ExtractionLog,
+): Promise<PageRotation | null> {
+  const probe = await buildOrientationProbe(contentBase64);
+  const resp = await anthropic.messages.create({
+    model: PRIMARY_MODEL,
+    max_tokens: 10,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: probe },
+          },
+          { type: "text", text: ORIENTATION_QUESTION },
+        ],
+      },
+    ],
+  });
+  const answer = resp.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("");
+  const rotation = rotationFromProbeAnswer(answer);
+  if (rotation === null) log.warn({ answer }, "orientation probe gave no usable answer");
+  return rotation;
+}
+
+/**
+ * The PDF the readers should see: a copy rotated upright when the probe
+ * found the scan sideways, otherwise the original. Never throws - a failed
+ * probe just means the readers get the stored pages as they are.
+ */
+async function prepareReadablePdf(
+  contentBase64: string,
+  log: ExtractionLog,
+): Promise<{ readable: string; rotation: PageRotation | null }> {
+  try {
+    const rotation = await detectUprightRotation(contentBase64, log);
+    if (rotation === null) return { readable: contentBase64, rotation: null };
+    const readable = await rotatePdfPages(contentBase64, rotation);
+    log.info({ rotation }, "page orientation detected");
+    return { readable, rotation };
+  } catch (err) {
+    log.warn({ err }, "orientation step failed; reading pages as stored");
+    return { readable: contentBase64, rotation: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Signature-line date. Whole-form readers keep substituting the job start
+// date (which they met on page 2) for the date written beside "تحريراً في"
+// on the last page, and the adjudicator sometimes sides with them. A model
+// that only sees the last page cannot make that substitution, so the date
+// is re-read there and overrides the full-form value.
+
+const SIGNATURE_DATE_QUESTION = `This is the last page (جدول الملاحظات) of a scanned Kuwaiti financial disclosure form. Near the bottom are three handwritten lines: الإسم (name), تحريراً في (the date the declaration was written) and توقيع المقر (signature). Read ONLY the handwritten date beside تحريراً في, digit by digit, exactly as inked. Handwritten dates on this form are DAY | MONTH | YEAR. Report it with the tool.`;
+
+// A forced tool call is the only way to get a bare answer: this model
+// rejects assistant prefill, and "JSON only" instructions still yield
+// paragraphs of digit-by-digit deliberation that overflow the token budget.
+const SIGNATURE_DATE_TOOL = {
+  name: "report_signature_date",
+  description: "Report the handwritten date beside تحريراً في on the last page of the form.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      asWritten: {
+        type: ["string", "null"],
+        description: "The digits exactly as inked, e.g. 10|07|2018; null when nothing is written there.",
+      },
+      iso: {
+        type: ["string", "null"],
+        description: "The same date as YYYY-MM-DD (day-first reading); null when any part is unreadable.",
+      },
+    },
+    required: ["asWritten", "iso"],
+  },
+};
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+async function readSignatureDate(
+  readableBase64: string,
+): Promise<{ asWritten: string | null; iso: string | null }> {
+  const lastPage = await extractPage(readableBase64, -1);
+  const resp = await anthropic.messages.create({
+    model: PRIMARY_MODEL,
+    max_tokens: 200,
+    tools: [SIGNATURE_DATE_TOOL],
+    tool_choice: { type: "tool", name: SIGNATURE_DATE_TOOL.name },
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: lastPage },
+          },
+          { type: "text", text: SIGNATURE_DATE_QUESTION },
+        ],
+      },
+    ],
+  });
+  const call = resp.content.find((b) => b.type === "tool_use") as
+    | { type: "tool_use"; input: unknown }
+    | undefined;
+  const parsed = (call?.input ?? {}) as { asWritten?: unknown; iso?: unknown };
+  const asWritten = typeof parsed.asWritten === "string" ? parsed.asWritten.trim() : null;
+  const isoRaw = typeof parsed.iso === "string" ? parsed.iso.trim() : null;
+  const iso = normalizeFormDate(isoRaw ?? asWritten);
+  return { asWritten, iso: iso && ISO_DATE_RE.test(iso) ? iso : null };
+}
+
+/** Overrides declarationDate with the signature-line reading. Never throws. */
+async function applySignatureDate(
+  readableBase64: string,
+  extraction: DisclosureExtraction,
+  log: ExtractionLog,
+): Promise<void> {
+  try {
+    const { asWritten, iso } = await readSignatureDate(readableBase64);
+    if (!iso) {
+      log.info({ asWritten }, "signature-line date not legible; keeping full-form reading");
+      return;
+    }
+    if (extraction.declarationDate === iso) return;
+    const was = extraction.declarationDate;
+    log.info({ was, now: iso, asWritten }, "declaration date corrected from signature line");
+    extraction.declarationDate = iso;
+    extraction.extractionWarnings = [
+      ...extraction.extractionWarnings.filter((w) => !/declaration ?date/i.test(w)),
+      `Declaration date taken from the signature line (تحريراً في) on the last page: "${asWritten ?? iso}" = ${iso}; the full-form reading had ${was ?? "none"}.`,
+    ].slice(0, 16);
+  } catch (err) {
+    log.warn({ err }, "signature-line date re-read failed; keeping full-form reading");
+  }
+}
+
+/** Runs the deterministic clean-up and logs what it changed. */
+function sanitized(
+  extraction: DisclosureExtraction,
+  stage: string,
+  log: ExtractionLog,
+): DisclosureExtraction {
+  const { extraction: clean, notes } = sanitizeExtraction(extraction);
+  if (notes.length) log.info({ stage, notes }, "reading sanitized");
+  return clean;
+}
+
 /**
  * Full dual-reader pipeline. Degrades gracefully: if the secondary reader or
  * the adjudication fails, the primary reading is returned with a warning.
+ * `contentBase64` must be the upright (readable) copy of the PDF.
  */
 async function runDualExtraction(
   contentBase64: string,
@@ -1122,7 +1331,7 @@ async function runDualExtraction(
   log: ExtractionLog,
 ): Promise<DisclosureExtraction> {
   await setPhase("reading_primary");
-  const primary = await extractPrimary(contentBase64);
+  const primary = sanitized(await extractPrimary(contentBase64), "primary", log);
   log.info(
     { accounts: primary.bankAccountsAndDeposits.length, warnings: primary.extractionWarnings.length },
     "primary reading complete",
@@ -1132,8 +1341,10 @@ async function runDualExtraction(
   if (geminiConfigured()) {
     await setPhase("reading_secondary");
     try {
-      secondary = coerceDisclosureExtraction(
-        extractJsonLoose(await callSecondaryExtraction(contentBase64)),
+      secondary = sanitized(
+        coerceDisclosureExtraction(extractJsonLoose(await callSecondaryExtraction(contentBase64))),
+        "secondary",
+        log,
       );
       log.info(
         { accounts: secondary.bankAccountsAndDeposits.length, warnings: secondary.extractionWarnings.length },
@@ -1159,7 +1370,7 @@ async function runDualExtraction(
 
   await setPhase("adjudicating");
   try {
-    const final = await adjudicate(contentBase64, primary, secondary);
+    const final = sanitized(await adjudicate(contentBase64, primary, secondary), "adjudicated", log);
     return {
       ...final,
       readers: {
@@ -1246,7 +1457,18 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
     let extraction: DisclosureExtraction;
     try {
       extraction = await Promise.race([
-        runDualExtraction(row.contentBase64, setPhase, log),
+        (async () => {
+          // Orientation is part of the first reading phase from the UI's
+          // point of view; it takes a few seconds.
+          await setPhase("reading_primary");
+          const { readable, rotation } = await prepareReadablePdf(row.contentBase64, log);
+          const result = await runDualExtraction(readable, setPhase, log);
+          await applySignatureDate(readable, result, log);
+          if (rotation !== null) result.pageRotation = rotation;
+          const pages = await countPdfPages(row.contentBase64);
+          if (pages !== null) result.pageCount = pages;
+          return result;
+        })(),
         timeout,
       ]);
     } finally {
@@ -1282,6 +1504,19 @@ export async function runDisclosureExtraction(disclosureId: number): Promise<voi
     if (updated.length === 0) {
       log.warn("disclosure was replaced mid-extraction; stale result discarded");
       return;
+    }
+    // Mirror the reading into the queryable declarant / item tables. A
+    // failure here must not fail the reading - the JSON on the row stays
+    // authoritative and the next save re-projects it.
+    try {
+      await projectDeclarationRecords({
+        caseId: row.caseId,
+        disclosureId,
+        extraction,
+        source: "ai",
+      });
+    } catch (err) {
+      log.warn({ err }, "structured declaration records could not be written");
     }
     log.info(
       {

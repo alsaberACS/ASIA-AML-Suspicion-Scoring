@@ -22,6 +22,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import DeclarationRecordCard from './DeclarationRecordCard';
 import { Progress } from '@/components/ui/progress';
 import {
   Collapsible,
@@ -416,6 +417,7 @@ export default function IntakeSection({
             deleting={deleteDisclosure.isPending}
           />
         )}
+        <DeclarationRecordCard caseId={caseId} disclosure={disclosure} />
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

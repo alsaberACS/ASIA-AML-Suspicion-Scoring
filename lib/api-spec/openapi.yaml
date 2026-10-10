@@ -20,6 +20,8 @@ tags:
     description: Analysis runs and evidence packs
   - name: transactions
     description: Consolidated ledger
+  - name: intake
+    description: Case registration from handwritten financial declarations
 paths:
   /healthz:
     get:
@@ -586,6 +588,110 @@ paths:
           description: No disclosure uploaded for this case
         "409":
           description: Extraction already running
+  /cases/{caseId}/declaration:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getCaseDeclaration
+      tags: [intake]
+      summary: Structured database records projected from the case's financial disclosure (declarant + declared items, Arabic as written)
+      responses:
+        "200":
+          description: Declarant record and declared items
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeclarationRecords" }
+        "404":
+          description: No declaration records for this case
+  /intake/declarations:
+    get:
+      operationId: listDeclarationIntakes
+      tags: [intake]
+      summary: Pending case registrations started from a handwritten declaration PDF
+      responses:
+        "200":
+          description: Pending intakes, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DeclarationIntake" }
+    post:
+      operationId: startDeclarationIntake
+      tags: [intake]
+      summary: Upload a handwritten Nazaha declaration PDF; opens a pending case and starts the AI reading
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisclosureUpload" }
+      responses:
+        "201":
+          description: Pending case opened; reading runs in the background
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeclarationIntake" }
+        "422":
+          description: Not a valid PDF upload
+  /intake/declarations/{caseId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: getDeclarationIntake
+      tags: [intake]
+      summary: Status of one declaration intake
+      responses:
+        "200":
+          description: Intake summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeclarationIntake" }
+        "404":
+          description: Intake not found
+    delete:
+      operationId: discardDeclarationIntake
+      tags: [intake]
+      summary: Discard a pending intake (deletes the pending case and its PDF)
+      responses:
+        "204":
+          description: Discarded
+        "404":
+          description: Intake not found
+        "409":
+          description: Case already registered; delete it from the case registry instead
+  /intake/declarations/{caseId}/confirm:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      operationId: confirmDeclarationIntake
+      tags: [intake]
+      summary: Register the case from the reviewed declaration - saves corrections, writes the structured records and fills the case profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisclosureExtraction" }
+      responses:
+        "200":
+          description: Registered case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Case" }
+        "404":
+          description: Intake not found
+        "409":
+          description: Reading not finished or case already registered
+        "422":
+          description: Declarant name missing
 components:
   parameters:
     CaseId:
@@ -662,7 +768,7 @@ components:
           type: array
           items: { type: string }
         notes: { type: ["string", "null"] }
-        status: { type: string, enum: [draft, ready, analyzing, scored] }
+        status: { type: string, enum: [intake, draft, ready, analyzing, scored] }
         createdAt: { type: string }
         updatedAt: { type: string }
         fileCount: { type: integer }
@@ -1610,6 +1716,10 @@ components:
         locations:
           type: array
           items: { $ref: "#/components/schemas/DisclosureSourceLocation" }
+        pageRotation:
+          type: integer
+          enum: [0, 90, 180, 270]
+          description: Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.
     DisclosureSourceLocation:
       type: object
       required: [key, page, x0, y0, x1, y1]
@@ -1645,6 +1755,104 @@ components:
         extractedAt: { type: ["string", "null"] }
         phase: { type: ["string", "null"] }
         correctedAt: { type: ["string", "null"] }
+    DeclarationIntake:
+      type: object
+      description: A case opened from a handwritten declaration PDF. caseStatus "intake" = pending review; anything else = already registered.
+      required: [caseId, caseStatus, disclosureId, filename, fileSizeBytes, status, uploadedAt]
+      properties:
+        caseId: { type: integer }
+        caseStatus: { type: string }
+        disclosureId: { type: integer }
+        filename: { type: string }
+        fileSizeBytes: { type: integer }
+        status: { type: string, enum: [processing, ready, failed] }
+        phase: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        uploadedAt: { type: string }
+        extractedAt: { type: ["string", "null"] }
+        declarationType: { type: ["string", "null"] }
+        declarantName: { type: ["string", "null"] }
+        civilId: { type: ["string", "null"] }
+    DeclarantRecord:
+      type: object
+      description: Database record of the declarant (بيانات عن المقر), Arabic as written on the form.
+      required: [id, caseId, disclosureId, declarationType, sectionsMarkedNone, uncertainFields, source, updatedAt]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        disclosureId: { type: integer }
+        declarationType: { type: string, enum: [first, update, final, unknown] }
+        declarationDate: { type: ["string", "null"] }
+        fullName: { type: ["string", "null"] }
+        gender: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        residenceCountry: { type: ["string", "null"] }
+        civilId: { type: ["string", "null"] }
+        passportNo: { type: ["string", "null"] }
+        jobTitle: { type: ["string", "null"] }
+        employer: { type: ["string", "null"] }
+        jobStartDate: { type: ["string", "null"] }
+        jobEndDate: { type: ["string", "null"] }
+        workPhone: { type: ["string", "null"] }
+        mobile: { type: ["string", "null"] }
+        homePhone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        homeAddress: { type: ["string", "null"] }
+        monthlySalaryKwd: { type: ["number", "null"] }
+        generalNotes: { type: ["string", "null"] }
+        sectionsMarkedNone:
+          type: array
+          items: { type: string }
+        uncertainFields:
+          type: array
+          items: { type: string }
+        source: { type: string, enum: [ai, investigator] }
+        verifiedAt: { type: ["string", "null"] }
+        updatedAt: { type: string }
+    DeclarationItem:
+      type: object
+      description: One declared item (child, property, usufruct, security, account, debt or movable) as a database row.
+      required: [id, caseId, section, rowIndex, label, uncertain, corrected, alternates]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        section:
+          type: string
+          enum: [minorChildren, realEstate, usufructRights, securities, bankAccountsAndDeposits, debtsOwed, valuableMovables]
+        rowIndex: { type: integer }
+        ownerName: { type: ["string", "null"] }
+        label: { type: string }
+        kind: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        idType: { type: ["string", "null"] }
+        idNumber: { type: ["string", "null"] }
+        areaSqm: { type: ["number", "null"] }
+        ownershipPct: { type: ["number", "null"] }
+        quantityOrPct: { type: ["string", "null"] }
+        itemCount: { type: ["number", "null"] }
+        listed: { type: ["boolean", "null"] }
+        valueKwd: { type: ["number", "null"] }
+        dateText: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        uncertain: { type: boolean }
+        corrected: { type: boolean }
+        page: { type: ["integer", "null"] }
+        asWritten: { type: ["string", "null"] }
+        alternates:
+          type: array
+          items: { type: string }
+    DeclarationRecords:
+      type: object
+      required: [caseId, declarant, items]
+      properties:
+        caseId: { type: integer }
+        declarant:
+          oneOf:
+            - $ref: "#/components/schemas/DeclarantRecord"
+            - type: "null"
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeclarationItem" }
     DisclosureReconciliationFinding:
       type: object
       required: [findingId, category, severity, title, detail, txnIds, disclosureRefs]

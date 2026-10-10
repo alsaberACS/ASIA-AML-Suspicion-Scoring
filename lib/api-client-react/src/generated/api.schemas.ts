@@ -44,6 +44,7 @@ export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
 
 
 export const CaseStatus = {
+  intake: 'intake',
   draft: 'draft',
   ready: 'ready',
   analyzing: 'analyzing',
@@ -1313,6 +1314,19 @@ export const DisclosureExtractionDeclarationType = {
   unknown: 'unknown',
 } as const;
 
+/**
+ * Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run.
+ */
+export type DisclosureExtractionPageRotation = typeof DisclosureExtractionPageRotation[keyof typeof DisclosureExtractionPageRotation];
+
+
+export const DisclosureExtractionPageRotation = {
+  NUMBER_0: 0,
+  NUMBER_90: 90,
+  NUMBER_180: 180,
+  NUMBER_270: 270,
+} as const;
+
 export interface DisclosureReaders {
   primary: string;
   /** @nullable */
@@ -1351,6 +1365,8 @@ export interface DisclosureExtraction {
   extractionWarnings: string[];
   readers?: DisclosureReaders | null;
   locations?: DisclosureSourceLocation[];
+  /** Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run. */
+  pageRotation?: DisclosureExtractionPageRotation;
 }
 
 export type DisclosureStatus = typeof DisclosureStatus[keyof typeof DisclosureStatus];
@@ -1378,6 +1394,173 @@ export interface Disclosure {
   phase?: string | null;
   /** @nullable */
   correctedAt?: string | null;
+}
+
+export type DeclarationIntakeStatus = typeof DeclarationIntakeStatus[keyof typeof DeclarationIntakeStatus];
+
+
+export const DeclarationIntakeStatus = {
+  processing: 'processing',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+/**
+ * A case opened from a handwritten declaration PDF. caseStatus "intake" = pending review; anything else = already registered.
+ */
+export interface DeclarationIntake {
+  caseId: number;
+  caseStatus: string;
+  disclosureId: number;
+  filename: string;
+  fileSizeBytes: number;
+  status: DeclarationIntakeStatus;
+  /** @nullable */
+  phase?: string | null;
+  /** @nullable */
+  error?: string | null;
+  uploadedAt: string;
+  /** @nullable */
+  extractedAt?: string | null;
+  /** @nullable */
+  declarationType?: string | null;
+  /** @nullable */
+  declarantName?: string | null;
+  /** @nullable */
+  civilId?: string | null;
+}
+
+export type DeclarantRecordDeclarationType = typeof DeclarantRecordDeclarationType[keyof typeof DeclarantRecordDeclarationType];
+
+
+export const DeclarantRecordDeclarationType = {
+  first: 'first',
+  update: 'update',
+  final: 'final',
+  unknown: 'unknown',
+} as const;
+
+export type DeclarantRecordSource = typeof DeclarantRecordSource[keyof typeof DeclarantRecordSource];
+
+
+export const DeclarantRecordSource = {
+  ai: 'ai',
+  investigator: 'investigator',
+} as const;
+
+/**
+ * Database record of the declarant (بيانات عن المقر), Arabic as written on the form.
+ */
+export interface DeclarantRecord {
+  id: number;
+  caseId: number;
+  disclosureId: number;
+  declarationType: DeclarantRecordDeclarationType;
+  /** @nullable */
+  declarationDate?: string | null;
+  /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
+  gender?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  residenceCountry?: string | null;
+  /** @nullable */
+  civilId?: string | null;
+  /** @nullable */
+  passportNo?: string | null;
+  /** @nullable */
+  jobTitle?: string | null;
+  /** @nullable */
+  employer?: string | null;
+  /** @nullable */
+  jobStartDate?: string | null;
+  /** @nullable */
+  jobEndDate?: string | null;
+  /** @nullable */
+  workPhone?: string | null;
+  /** @nullable */
+  mobile?: string | null;
+  /** @nullable */
+  homePhone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  homeAddress?: string | null;
+  /** @nullable */
+  monthlySalaryKwd?: number | null;
+  /** @nullable */
+  generalNotes?: string | null;
+  sectionsMarkedNone: string[];
+  uncertainFields: string[];
+  source: DeclarantRecordSource;
+  /** @nullable */
+  verifiedAt?: string | null;
+  updatedAt: string;
+}
+
+export type DeclarationItemSection = typeof DeclarationItemSection[keyof typeof DeclarationItemSection];
+
+
+export const DeclarationItemSection = {
+  minorChildren: 'minorChildren',
+  realEstate: 'realEstate',
+  usufructRights: 'usufructRights',
+  securities: 'securities',
+  bankAccountsAndDeposits: 'bankAccountsAndDeposits',
+  debtsOwed: 'debtsOwed',
+  valuableMovables: 'valuableMovables',
+} as const;
+
+/**
+ * One declared item (child, property, usufruct, security, account, debt or movable) as a database row.
+ */
+export interface DeclarationItem {
+  id: number;
+  caseId: number;
+  section: DeclarationItemSection;
+  rowIndex: number;
+  /** @nullable */
+  ownerName?: string | null;
+  label: string;
+  /** @nullable */
+  kind?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
+  idType?: string | null;
+  /** @nullable */
+  idNumber?: string | null;
+  /** @nullable */
+  areaSqm?: number | null;
+  /** @nullable */
+  ownershipPct?: number | null;
+  /** @nullable */
+  quantityOrPct?: string | null;
+  /** @nullable */
+  itemCount?: number | null;
+  /** @nullable */
+  listed?: boolean | null;
+  /** @nullable */
+  valueKwd?: number | null;
+  /** @nullable */
+  dateText?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  uncertain: boolean;
+  corrected: boolean;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  asWritten?: string | null;
+  alternates: string[];
+}
+
+export interface DeclarationRecords {
+  caseId: number;
+  declarant: DeclarantRecord | null;
+  items: DeclarationItem[];
 }
 
 export type DispositionInputDecision = typeof DispositionInputDecision[keyof typeof DispositionInputDecision];

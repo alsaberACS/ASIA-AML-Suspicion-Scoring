@@ -14,10 +14,25 @@ import CaseList from '@/pages/cases/CaseList';
 import CaseWorkspace from '@/pages/cases/CaseWorkspace';
 import CaseDisclosureWorkbench from '@/pages/cases/CaseDisclosureWorkbench';
 import CaseNetwork from '@/pages/cases/CaseNetwork';
+import DeclarationIntakePage from '@/pages/intake/DeclarationIntakePage';
+import DeclarationReviewPage from '@/pages/intake/DeclarationReviewPage';
 import Landing from '@/pages/Landing';
 import { isUnlocked } from '@/lib/access';
 
-const queryClient = new QueryClient();
+// Client errors (a 404 for "no analysis yet", a 403) never fix themselves;
+// the default three retries only stretch loading states by ~7 seconds.
+// Network and server errors keep the retries.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as { status?: unknown } | null)?.status;
+        const clientError = typeof status === 'number' && status >= 400 && status < 500;
+        return !clientError && failureCount < 3;
+      },
+    },
+  },
+});
 
 function Router() {
   return (
@@ -29,6 +44,8 @@ function Router() {
           <Route path="/intel" component={CounterpartyIntelPage} />
           <Route path="/about" component={AboutPage} />
           <Route path="/cases" component={CaseList} />
+          <Route path="/register" component={DeclarationIntakePage} />
+          <Route path="/register/:id" component={DeclarationReviewPage} />
           <Route path="/cases/:id/disclosure" component={CaseDisclosureWorkbench} />
           <Route path="/cases/:id/network" component={CaseNetwork} />
           <Route path="/cases/:id" component={CaseWorkspace} />

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ne } from "drizzle-orm";
 import { db, casesTable } from "@workspace/db";
 import { CreateCaseBody, GetCaseParams, UpdateCaseBody, UpdateCaseParams, DeleteCaseParams } from "@workspace/api-zod";
 import { h, withStats } from "./util";
@@ -9,7 +9,13 @@ const router: IRouter = Router();
 router.get(
   "/cases",
   h(async (_req, res) => {
-    const rows = await db.select().from(casesTable).orderBy(desc(casesTable.createdAt));
+    // Cases still being registered from a declaration PDF (status
+    // "intake") live on the intake screen until confirmed.
+    const rows = await db
+      .select()
+      .from(casesTable)
+      .where(ne(casesTable.status, "intake"))
+      .orderBy(desc(casesTable.createdAt));
     res.json(await withStats(rows));
   }),
 );

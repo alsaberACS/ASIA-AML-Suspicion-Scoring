@@ -122,6 +122,7 @@ export default function CaseHeader({
 
   const getStatusColor = (status: string) => {
     switch(status) {
+      case 'intake': return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
       case 'draft': return 'bg-muted text-muted-foreground border-border';
       case 'ready': return 'bg-primary/20 text-primary border-primary/30';
       case 'analyzing': return 'bg-amber-500/20 text-amber-500 border-amber-500/30';

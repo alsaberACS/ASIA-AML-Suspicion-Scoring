@@ -14,3 +14,8 @@ Two different libraries share the name: `react-pdf` (viewer, this file) vs `@rea
 
 **Why:** each of these failed loudly in sequence when the disclosure workbench was first built (Vite overlay → blank viewer → resolution error).
 **How to apply:** any Vite artifact embedding the react-pdf viewer; check all three (CSS, worker, direct dep) before first run.
+
+## Overlays and "blank white page" reports (added 2026-10-10)
+- react-pdf's `Page` div has an inline `backgroundColor: white` and the canvas is `visibility: hidden` while pdf.js draws. A "page went blank white after navigating/rotating" report is almost always a render still in progress on a slow browser, not a failed render — gate overlays on `onRenderSuccess` (it receives the page proxy; compare `page.pageNumber` to the current page) and show a "Rendering page N" hint while they differ, instead of chasing a cancellation race.
+- A zoomed sheet inside `flex justify-center` + `overflow-hidden` wrapper shrinks/clips instead of scrolling; use `flex w-max min-w-full` on the row and `shrink-0 mx-auto` on the sheet so it centres when it fits and scrolls when wider.
+- Reserve `pageWidth = paneWidth - padding - sheet border`; forgetting the 2px border leaves a 1px overflow and a phantom horizontal scrollbar at 100%.

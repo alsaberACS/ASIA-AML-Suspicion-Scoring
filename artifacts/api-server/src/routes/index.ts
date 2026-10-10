@@ -8,6 +8,7 @@ import sanctionsRouter from "./sanctions";
 import transactionsRouter from "./transactions";
 import dashboardRouter from "./dashboard";
 import disclosureRouter from "./disclosure";
+import intakeRouter from "./intake";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(sanctionsRouter);
 router.use(transactionsRouter);
 router.use(dashboardRouter);
 router.use(disclosureRouter);
+router.use(intakeRouter);
 
 export default router;

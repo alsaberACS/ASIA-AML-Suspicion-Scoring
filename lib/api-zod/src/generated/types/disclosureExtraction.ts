@@ -10,6 +10,7 @@ import type { DisclosureChild } from './disclosureChild';
 import type { DisclosureDebt } from './disclosureDebt';
 import type { DisclosureDeclarant } from './disclosureDeclarant';
 import type { DisclosureExtractionDeclarationType } from './disclosureExtractionDeclarationType';
+import type { DisclosureExtractionPageRotation } from './disclosureExtractionPageRotation';
 import type { DisclosureMovable } from './disclosureMovable';
 import type { DisclosureReaders } from './disclosureReaders';
 import type { DisclosureRealEstate } from './disclosureRealEstate';
@@ -39,4 +40,6 @@ export interface DisclosureExtraction {
   extractionWarnings: string[];
   readers?: DisclosureReaders | null;
   locations?: DisclosureSourceLocation[];
+  /** Clockwise degrees the stored pages must be turned to read upright, detected before reading. Absent when detection did not run. */
+  pageRotation?: DisclosureExtractionPageRotation;
 }

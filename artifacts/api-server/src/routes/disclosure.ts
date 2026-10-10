@@ -20,6 +20,7 @@ import {
   sectionRowCountsMatch,
 } from "../aml/disclosure";
 import { disclosureToApi } from "../aml/serialize";
+import { projectDeclarationRecords } from "../aml/declarationRecords";
 import { logger } from "../lib/logger";
 import { h } from "./util";
 
@@ -191,6 +192,18 @@ router.put(
           "corrections can only be saved on a completed reading (the AI is still reading, or the reading failed)",
       });
       return;
+    }
+    // Reviewed corrections are the verified truth: refresh the structured
+    // declarant / item records from them.
+    try {
+      await projectDeclarationRecords({
+        caseId,
+        disclosureId: updated.id,
+        extraction,
+        source: "investigator",
+      });
+    } catch (err) {
+      logger.warn({ err, caseId }, "structured declaration records could not be refreshed");
     }
     res.json(disclosureToApi(updated));
   }),

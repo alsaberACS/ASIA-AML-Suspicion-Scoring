@@ -10,7 +10,7 @@
 - [react-pdf pitfalls](react-pdf-pitfalls.md) — fixed absolute footer needs explicit height or >7-page docs crash; page/wrapper lineHeight breaks render-prop page numbers — set it per body style only.
 - [react-pdf viewer + Vite](react-pdf-viewer-vite.md) — v10 killed dist/esm CSS paths; worker needs ?url asset import; pdfjs-dist must be a direct dep pinned to react-pdf's exact version.
 - [Sanctions screening](sanctions-screening.md) — OFAC/UN endpoints 302 (plain GET, follow, no Range); possible-tier needs distinctive-token filter; PDF section numbers also hide in aiComplete ternaries.
-- [Disclosure extraction](disclosure-extraction.md) — whole-PDF document block to Claude works; upsert-runners need upload-token conditional writes; AI stages re-fetch async inputs at stage time.
+- [Disclosure extraction](disclosure-extraction.md) — whole-PDF document block works; 4-page /Rotate probe fixes sideways scans; deterministic post-pass for example rows/placeholders; run-token writes.
 - [Disclosure locator](disclosure-locator.md) — sideways scans: models flip row boxes to reading frame; repair via model-reported page rotation; salvage+retry flaky JSON; verify by overlay on pdftoppm renders.
 - [Tester console noise](tester-console-noise.md) — long-lived tester browsers accumulate stale HMR errors; hard-reload before treating console errors as real bugs.
 - [Publish promote debugging](deploy-debugging.md) — build log dying at "Creating Autoscale service" +5min = candidate never ready; its logs are never surfaced — replicate prod boot locally to split app vs platform.
@@ -18,3 +18,4 @@
 - [Async job polling](async-job-polling.md) — poll-driven UIs must detect job completion via timestamp watermark, not transient busy-flag transitions; sub-poll-interval jobs never show busy.
 - [Methodology copy honesty](methodology-copy-honesty.md) — "how it works" copy gets fact-checked against engine source; red-flag words: calibrated, every, only; dark image sections need literal light colors.
 - [Annotated-doc tooling](annotated-doc-tooling.md) — TSX doc tools: src/tools + esbuild-bundle + node; figure boxes must size to note bottoms, not image height; magick text ops crash (append-only safe).
+- [Headless browser verification](headless-browser-verification.md) — /repl/tools/bin/chromium + playwright-core over CDP (background task) checks clicks/timers/scroll geometry yourself; ?access= unlocks the gate.

@@ -10,6 +10,7 @@ export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
 
 
 export const CaseStatus = {
+  intake: 'intake',
   draft: 'draft',
   ready: 'ready',
   analyzing: 'analyzing',

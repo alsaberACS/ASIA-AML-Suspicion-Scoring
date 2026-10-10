@@ -11,6 +11,7 @@ import {
   Target,
   Share2,
   BookOpenText,
+  ScanText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/cases', label: 'Case Registry', icon: FolderSearch },
+    { href: '/register', label: 'Register from Declaration', icon: ScanText },
     { href: '/rules', label: 'Rule Performance', icon: Target },
     { href: '/intel', label: 'Counterparty Intel', icon: Share2 },
     { href: '/about', label: 'About the Application', icon: BookOpenText },

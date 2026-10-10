@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -60,6 +60,7 @@
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
+  --font-arabic: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Segoe UI', 'Inter', sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -575,14 +576,16 @@
   }
 }
 
-/* Region-level provenance: spotlight the located ink area. The oversized
-   box-shadow dims the rest of the page (clipped by the overflow-hidden
-   page wrapper); corner ticks and pointer chevrons mark the box itself. */
+/* Region-level provenance: spotlight the located ink area. The pin stays
+   until the next request, so the entrance briefly dims the rest of the page
+   (oversized box-shadow, clipped by the overflow-hidden page wrapper) and
+   then settles into a plain outline the reviewer can read around. Corner
+   ticks and pointer chevrons mark the box itself. */
 .source-reveal-box {
   pointer-events: none;
   border: 1px solid hsl(var(--primary) / 0.95);
   box-shadow:
-    0 0 0 9999px hsl(220 60% 3% / 0.42),
+    0 0 0 9999px hsl(220 60% 3% / 0),
     0 0 16px hsl(var(--primary) / 0.4);
 }
 .source-reveal-corner {
@@ -604,10 +607,23 @@
   filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.8));
 }
 @keyframes source-reveal-box-life {
-  0% { opacity: 0; transform: scale(1.04); }
-  6% { opacity: 1; transform: scale(1); }
-  88% { opacity: 1; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+    transform: scale(1.04);
+    box-shadow: 0 0 0 9999px hsl(220 60% 3% / 0.42), 0 0 16px hsl(var(--primary) / 0.4);
+  }
+  6% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  60% {
+    box-shadow: 0 0 0 9999px hsl(220 60% 3% / 0.42), 0 0 16px hsl(var(--primary) / 0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 9999px hsl(220 60% 3% / 0), 0 0 16px hsl(var(--primary) / 0.4);
+  }
 }
 @keyframes source-reveal-arrow-nudge {
   0%, 100% { transform: translateX(0); }
@@ -618,6 +634,6 @@
     animation: source-reveal-box-life 4.4s ease-in-out forwards;
   }
   .source-reveal-arrow {
-    animation: source-reveal-arrow-nudge 0.9s ease-in-out infinite;
+    animation: source-reveal-arrow-nudge 0.9s ease-in-out 5;
   }
 }

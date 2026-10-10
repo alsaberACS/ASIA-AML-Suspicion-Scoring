@@ -30,6 +30,8 @@ import type {
   CaseUpdate,
   CounterpartyIntelReport,
   DashboardSummary,
+  DeclarationIntake,
+  DeclarationRecords,
   Disclosure,
   DisclosureExtraction,
   DisclosureUpload,
@@ -2459,5 +2461,450 @@ export const useReprocessCaseDisclosure = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReprocessCaseDisclosureMutationOptions(options));
+    }
+
+export const getGetCaseDeclarationUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/declaration`
+}
+
+/**
+ * @summary Structured database records projected from the case's financial disclosure (declarant + declared items, Arabic as written)
+ */
+export const getCaseDeclaration = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<DeclarationRecords> => {
+
+  return customFetch<DeclarationRecords>(getGetCaseDeclarationUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCaseDeclarationQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/declaration`
+    ] as const;
+    }
+
+
+export const getGetCaseDeclarationQueryOptions = <TData = Awaited<ReturnType<typeof getCaseDeclaration>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDeclaration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCaseDeclarationQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaseDeclaration>>> = ({ signal }) => getCaseDeclaration(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCaseDeclaration>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCaseDeclarationQueryResult = NonNullable<Awaited<ReturnType<typeof getCaseDeclaration>>>
+export type GetCaseDeclarationQueryError = ErrorType<void>
+
+
+/**
+ * @summary Structured database records projected from the case's financial disclosure (declarant + declared items, Arabic as written)
+ */
+
+export function useGetCaseDeclaration<TData = Awaited<ReturnType<typeof getCaseDeclaration>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseDeclaration>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCaseDeclarationQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDeclarationIntakesUrl = () => {
+
+
+
+
+  return `/api/intake/declarations`
+}
+
+/**
+ * @summary Pending case registrations started from a handwritten declaration PDF
+ */
+export const listDeclarationIntakes = async ( options?: Parameters<typeof customFetch>[1]): Promise<DeclarationIntake[]> => {
+
+  return customFetch<DeclarationIntake[]>(getListDeclarationIntakesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeclarationIntakesQueryKey = () => {
+    return [
+    `/api/intake/declarations`
+    ] as const;
+    }
+
+
+export const getListDeclarationIntakesQueryOptions = <TData = Awaited<ReturnType<typeof listDeclarationIntakes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeclarationIntakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeclarationIntakesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeclarationIntakes>>> = ({ signal }) => listDeclarationIntakes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeclarationIntakes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeclarationIntakesQueryResult = NonNullable<Awaited<ReturnType<typeof listDeclarationIntakes>>>
+export type ListDeclarationIntakesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Pending case registrations started from a handwritten declaration PDF
+ */
+
+export function useListDeclarationIntakes<TData = Awaited<ReturnType<typeof listDeclarationIntakes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeclarationIntakes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeclarationIntakesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartDeclarationIntakeUrl = () => {
+
+
+
+
+  return `/api/intake/declarations`
+}
+
+/**
+ * @summary Upload a handwritten Nazaha declaration PDF; opens a pending case and starts the AI reading
+ */
+export const startDeclarationIntake = async (disclosureUpload: DisclosureUpload, options?: Parameters<typeof customFetch>[1]): Promise<DeclarationIntake> => {
+
+  return customFetch<DeclarationIntake>(getStartDeclarationIntakeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disclosureUpload)
+  }
+);}
+
+
+
+
+
+export const getStartDeclarationIntakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startDeclarationIntake>>, TError,{data: BodyType<DisclosureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startDeclarationIntake>>, TError,{data: BodyType<DisclosureUpload>}, TContext> => {
+
+const mutationKey = ['startDeclarationIntake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startDeclarationIntake>>, {data: BodyType<DisclosureUpload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startDeclarationIntake(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartDeclarationIntakeMutationResult = NonNullable<Awaited<ReturnType<typeof startDeclarationIntake>>>
+    export type StartDeclarationIntakeMutationBody = BodyType<DisclosureUpload>
+    export type StartDeclarationIntakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Upload a handwritten Nazaha declaration PDF; opens a pending case and starts the AI reading
+ */
+export const useStartDeclarationIntake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startDeclarationIntake>>, TError,{data: BodyType<DisclosureUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startDeclarationIntake>>,
+        TError,
+        {data: BodyType<DisclosureUpload>},
+        TContext
+      > => {
+      return useMutation(getStartDeclarationIntakeMutationOptions(options));
+    }
+
+export const getGetDeclarationIntakeUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/intake/declarations/${caseId}`
+}
+
+/**
+ * @summary Status of one declaration intake
+ */
+export const getDeclarationIntake = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<DeclarationIntake> => {
+
+  return customFetch<DeclarationIntake>(getGetDeclarationIntakeUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeclarationIntakeQueryKey = (caseId: number,) => {
+    return [
+    `/api/intake/declarations/${caseId}`
+    ] as const;
+    }
+
+
+export const getGetDeclarationIntakeQueryOptions = <TData = Awaited<ReturnType<typeof getDeclarationIntake>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeclarationIntake>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeclarationIntakeQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeclarationIntake>>> = ({ signal }) => getDeclarationIntake(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeclarationIntake>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeclarationIntakeQueryResult = NonNullable<Awaited<ReturnType<typeof getDeclarationIntake>>>
+export type GetDeclarationIntakeQueryError = ErrorType<void>
+
+
+/**
+ * @summary Status of one declaration intake
+ */
+
+export function useGetDeclarationIntake<TData = Awaited<ReturnType<typeof getDeclarationIntake>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeclarationIntake>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeclarationIntakeQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDiscardDeclarationIntakeUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/intake/declarations/${caseId}`
+}
+
+/**
+ * @summary Discard a pending intake (deletes the pending case and its PDF)
+ */
+export const discardDeclarationIntake = async (caseId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDiscardDeclarationIntakeUrl(caseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscardDeclarationIntakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardDeclarationIntake>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof discardDeclarationIntake>>, TError,{caseId: number}, TContext> => {
+
+const mutationKey = ['discardDeclarationIntake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof discardDeclarationIntake>>, {caseId: number}> = (props) => {
+          const {caseId} = props ?? {};
+
+          return  discardDeclarationIntake(caseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DiscardDeclarationIntakeMutationResult = NonNullable<Awaited<ReturnType<typeof discardDeclarationIntake>>>
+
+    export type DiscardDeclarationIntakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Discard a pending intake (deletes the pending case and its PDF)
+ */
+export const useDiscardDeclarationIntake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof discardDeclarationIntake>>, TError,{caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof discardDeclarationIntake>>,
+        TError,
+        {caseId: number},
+        TContext
+      > => {
+      return useMutation(getDiscardDeclarationIntakeMutationOptions(options));
+    }
+
+export const getConfirmDeclarationIntakeUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/intake/declarations/${caseId}/confirm`
+}
+
+/**
+ * @summary Register the case from the reviewed declaration - saves corrections, writes the structured records and fills the case profile
+ */
+export const confirmDeclarationIntake = async (caseId: number,
+    disclosureExtraction: DisclosureExtraction, options?: Parameters<typeof customFetch>[1]): Promise<Case> => {
+
+  return customFetch<Case>(getConfirmDeclarationIntakeUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(disclosureExtraction)
+  }
+);}
+
+
+
+
+
+export const getConfirmDeclarationIntakeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDeclarationIntake>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmDeclarationIntake>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext> => {
+
+const mutationKey = ['confirmDeclarationIntake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmDeclarationIntake>>, {caseId: number;data: BodyType<DisclosureExtraction>}> = (props) => {
+          const {caseId,data} = props ?? {};
+
+          return  confirmDeclarationIntake(caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmDeclarationIntakeMutationResult = NonNullable<Awaited<ReturnType<typeof confirmDeclarationIntake>>>
+    export type ConfirmDeclarationIntakeMutationBody = BodyType<DisclosureExtraction>
+    export type ConfirmDeclarationIntakeMutationError = ErrorType<void>
+
+    /**
+ * @summary Register the case from the reviewed declaration - saves corrections, writes the structured records and fills the case profile
+ */
+export const useConfirmDeclarationIntake = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDeclarationIntake>>, TError,{caseId: number;data: BodyType<DisclosureExtraction>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmDeclarationIntake>>,
+        TError,
+        {caseId: number;data: BodyType<DisclosureExtraction>},
+        TContext
+      > => {
+      return useMutation(getConfirmDeclarationIntakeMutationOptions(options));
     }
 

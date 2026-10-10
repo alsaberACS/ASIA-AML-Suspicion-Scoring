@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, inArray, sql } from "drizzle-orm";
+import { desc, inArray, ne, sql } from "drizzle-orm";
 import {
   db,
   analysisRunsTable,
@@ -20,7 +20,10 @@ router.get(
   "/dashboard/summary",
   h(async (_req, res) => {
     const [caseCount, fileAgg, txnAgg, runs] = await Promise.all([
-      db.select({ n: sql<number>`count(*)::int` }).from(casesTable),
+      db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(casesTable)
+        .where(ne(casesTable.status, "intake")),
       db
         .select({ n: sql<number>`count(*)::int`, dq: sql<number | null>`avg(${bankFilesTable.dataQuality})` })
         .from(bankFilesTable),
