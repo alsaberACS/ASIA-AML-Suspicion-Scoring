@@ -66,7 +66,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             return (
               <Link key={item.href} href={item.href}>
                 <div
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors cursor-pointer ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-sm transition-colors cursor-pointer ${item.href === '/register' ? 'new-feature-pulse' : ''} ${
                     isActive
                       ? 'bg-primary/10 text-primary font-medium'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
